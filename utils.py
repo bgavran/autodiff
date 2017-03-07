@@ -16,7 +16,7 @@ def create_meshgrid(lenn, maxx, points):
     return np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
 
 
-def gradient_meshgrid(function, wrt, param=0):
+def gradient_meshgrid(graph, wrt):
     w_len = len(wrt)
     mx = create_meshgrid(x_len, xmax, xn_points)
     mw = create_meshgrid(w_len, wmax, wn_points)
@@ -35,10 +35,11 @@ def gradient_meshgrid(function, wrt, param=0):
 
     # iterating through every input, producing the output and summing the gradients
     for x in tqdm(l):
-        graph = function(x, mw_input, param)
-        graph.compute_gradient()
+        input_ = *x, *mw_input
+        graph_instance = graph(input_, "comp_graph")
+        graph_instance.compute_gradient()
         for i, var in enumerate(wrt):
-            dw[i] += graph.gradient(wrt=var)
+            dw[i] += graph_instance.gradient(wrt=var)
 
     # start point (uniform distribution), end point (calculated gradient)
     return mw, [i / mx[0].size for i in dw]

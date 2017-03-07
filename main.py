@@ -4,36 +4,29 @@ from ops import *
 from test_functions import *
 
 
-def graph(x, w, param=0):
-    """
+class WeirdF(CompositeOperation):
+    def __init__(self, children, name=""):
+        # Needs to be initialized this way because this composite graph is at the bottom (leaf nodes) and data is
+        # coming in through here. Maybe create a new class that handles this?
+        self.x0, self.x1 = Variable(children[0]), Variable(children[1])
+        self.w0, self.w1 = Variable(children[2], name="w0"), Variable(children[3], name="w1")
+        chldrn = self.x0, self.x1, self.w0, self.w1
+        super().__init__(chldrn, name)
+        self.out = None
+        self.graph()
 
-    :param x: Data; Must be a scalar?
-    :param w: Parameters; Can be a scalar or a tensor
-    :return: Differentiable operation which is performed on data and parameters
-    """
-    # x_var = [Variable(x_i, name="x" + str(i)) for (i, x_i) in enumerate(x)]
-    # w_var = [Variable(w_i, name="w" + str(i)) for (i, w_i) in enumerate(w)]
-
-    y = Variable(if_func(x[0], x[1], param))
-
-    x0, x1 = Variable(x[0]), Variable(x[1])
-    w0, w1 = Variable(w[0], name="w0"), Variable(w[1], name="w1")
-
-    umn1 = x0 * w0
-    umn2 = x1 * w1
-
-    sigm = Sigmoid([umn1])
-
-    umn = sigm * umn2
-
-    res = SquareCost([umn, y])
-
-    return res
+    def graph(self):
+        y = Variable(if_func(self.children[0](), self.children[1](), 1))
+        umn1 = self.x0 * self.w0
+        umn2 = self.x1 * self.w1
+        sigm = Sigmoid([umn1])
+        umn = sigm * umn2
+        self.out = SquareCost([umn, y])
 
 
-wrt = ["w0", "w1"]
+with_respect_to = ["w0", "w1"]
 
-grad = gradient_meshgrid(graph, wrt, [1])
-Plotter().plot_stream(*grad, wrt)
+grad = gradient_meshgrid(WeirdF, with_respect_to)
+Plotter().plot_stream(*grad, with_respect_to)
 
 input()

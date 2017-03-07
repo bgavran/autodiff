@@ -11,12 +11,22 @@ class Mul(Operation):
         return self.children[0]() * self.children[1]()
 
     def df(self, wrt=""):
-        if wrt not in [child.name for child in self.children]:
-            raise ValueError()
-        elif wrt == self.children[0].name:
+        if wrt == self.children[0].name:
             return self.children[1]()
-        else:
+        elif wrt == self.children[1].name:
             return self.children[0]()
+        return 0
+        # """
+        # Can be differentiated even if both inputs are the wrt argument. Should work also when neither is.
+        # :param wrt:
+        # :return:
+        # """
+        # res = 0
+        # if wrt == self.children[0].name:
+        #     res += self.children[1]()
+        # if wrt == self.children[1].name:
+        #     res += self.children[0]()
+        # return res
 
 
 class Add(Operation):

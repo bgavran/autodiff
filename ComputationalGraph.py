@@ -98,3 +98,25 @@ class Operation(Node):
 
     def __call__(self, *args, **kwargs):
         return self.f()
+
+
+class CompositeOperation(Operation):
+    def __init__(self, children, name=""):
+        super().__init__(children, name)
+        self.out = None
+        self.graph()
+
+    def graph(self):
+        raise NotImplementedError()
+
+    def f(self):
+        self.out.f()
+
+    def df(self, wrt=""):
+        self.out.df(wrt=wrt)
+
+    def gradient(self, wrt=""):
+        return self.out.gradient(wrt)
+
+    def compute_gradient(self):
+        self.out.compute_gradient()
