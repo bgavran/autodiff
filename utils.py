@@ -1,5 +1,6 @@
 import numpy as np
 from tqdm import tqdm
+from test_functions import *
 
 p_exp = 5
 x_len = 2  # number (dimension) of input
@@ -16,7 +17,7 @@ def create_meshgrid(lenn, maxx, points):
     return np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
 
 
-def gradient_meshgrid(graph, wrt):
+def gradient_meshgrid(graph_instance, wrt):
     w_len = len(wrt)
     mx = create_meshgrid(x_len, xmax, xn_points)
     mw = create_meshgrid(w_len, wmax, wn_points)
@@ -25,19 +26,17 @@ def gradient_meshgrid(graph, wrt):
     # rearanging the array, based on the wrt argument, should work for 3 dimensions also
     myorder = [int(i[1]) for i in wrt]
     mw_input = [mw[i] for i in myorder]
-
-    # def compute_grad(x, wrt):
-    #     graph = function(x, mw_input, param)
-    #     graph.compute_gradient()
-    #     return [graph.gradient(var=var) for var in wrt]
+    # mw_input = mw
 
     l = list(np.nditer(mx))
 
     # iterating through every input, producing the output and summing the gradients
     for x in tqdm(l):
-        input_ = *x, *mw_input
-        graph_instance = graph(input_, "comp_graph")
-        graph_instance.compute_gradient()
+
+        y = if_func(x[0], x[1], 1)
+        input_dict = {"x0": x[0], "x1": x[1], "w0": mw_input[0], "w1": mw_input[1], "y": y}
+
+        graph_instance.compute_gradient(input_dict)
         for i, var in enumerate(wrt):
             dw[i] += graph_instance.gradient(wrt=var)
 

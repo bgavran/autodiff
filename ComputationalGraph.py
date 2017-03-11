@@ -1,5 +1,6 @@
 from functools import lru_cache
 import numbers
+import numpy as np
 
 
 class Node:
@@ -21,7 +22,7 @@ class Node:
         if isinstance(other, Node):
             return Mul([self, other])
         elif isinstance(other, numbers.Number):
-            return Mul([Variable(other), self])
+            return Mul([Constant(other), self])
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -31,16 +32,41 @@ class Node:
         if isinstance(other, Node):
             return Add([self, other])
         elif isinstance(other, numbers.Number):
-            return Add([Variable(other), self])
+            return Add([self, Constant(other)])
 
     def __radd__(self, other):
         return self.__add__(other)
 
+    def __neg__(self):
+        return Constant(0) - self
 
-class Variable(Node):
+    def __sub__(self, other):
+        from ops import Subtract
+        if isinstance(other, Node):
+            return Subtract([self, other])
+        elif isinstance(other, numbers.Number):
+            return Subtract([self, Constant(other)])
+
+    def __rsub__(self, other):
+        return -self.__sub__(other)
+
+
+class Constant(Node):
     def __init__(self, value, name=""):
+        assert isinstance(value, np.ndarray) or isinstance(value, numbers.Number)
         super().__init__(name)
         self.value = value
+        self.all_names = [self.name]
+
+    def __call__(self, *args, **kwargs):
+        return self.value
+
+
+class Variable(Node):
+    def __init__(self, name=""):
+        # All variables are, by default, placeholders?
+        super().__init__(name)
+        # self.value = value
         self.all_names = [self.name]  # names of all the children nodes
 
     def gradient(self, wrt=""):
@@ -48,8 +74,11 @@ class Variable(Node):
             return 1
         return 0
 
-    def __call__(self, *args, **kwargs):
-        return self.value
+    def __call__(self, input_dict):
+        try:
+            return input_dict[self.name]
+        except KeyError:
+            raise KeyError("Must input value for variable", self.name)
 
 
 class Operation(Node):
@@ -60,11 +89,11 @@ class Operation(Node):
         self.all_names = self.check_names()
 
     @lru_cache(maxsize=None)
-    def f(self):
+    def f(self, input_dict):
         raise NotImplementedError()
 
     @lru_cache(maxsize=None)
-    def df(self, wrt=""):
+    def df(self, input_dict, wrt=""):
         raise NotImplementedError()
 
     def check_names(self):
@@ -80,15 +109,20 @@ class Operation(Node):
             raise ValueError("Names of nodes have to be unique!", temp_names)
         return temp_names
 
-    def compute_gradient(self):
+    def compute_gradient(self, input_dict):
+        """
+
+        :param input_dict: dictionary of input variables
+        :return:
+        """
         self.check_names()
         # Computing the derivative with respect to each of the inputs
-        self.last_grad = [self.df(wrt=child.name) for child in self.children]
+        self.last_grad = [self.df(input_dict, wrt=child.name) for child in self.children]
 
         # Making each of the inputs do the same
         for child in self.children:
             if isinstance(child, Operation):
-                child.compute_gradient()
+                child.compute_gradient(input_dict)
 
     def gradient(self, wrt=""):
         grad_sum = 0
@@ -96,8 +130,8 @@ class Operation(Node):
             grad_sum += grad * child.gradient(wrt=wrt)
         return grad_sum
 
-    def __call__(self, *args, **kwargs):
-        return self.f()
+    def __call__(self, input_dict):
+        return self.f(input_dict)
 
 
 class CompositeOperation(Operation):
@@ -109,14 +143,14 @@ class CompositeOperation(Operation):
     def graph(self):
         raise NotImplementedError()
 
-    def f(self):
-        self.out.f()
+    def f(self, input_dict):
+        self.out.f(input_dict)
 
-    def df(self, wrt=""):
-        self.out.df(wrt=wrt)
+    def df(self, input_dict, wrt=""):
+        self.out.df(input_dict, wrt=wrt)
 
     def gradient(self, wrt=""):
         return self.out.gradient(wrt)
 
-    def compute_gradient(self):
-        self.out.compute_gradient()
+    def compute_gradient(self, input_dict):
+        self.out.compute_gradient(input_dict)
