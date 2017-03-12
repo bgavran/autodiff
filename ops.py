@@ -86,7 +86,7 @@ class SquareCost(Operation):
         super().__init__(children, name)
 
     def f(self, input_dict):
-        return np.square(self.children[0]() - self.children[1]()) / 2
+        return np.square(self.children[0](input_dict) - self.children[1](input_dict)) / 2
 
     def df(self, input_dict, wrt=""):
         return self.children[0](input_dict) - self.children[1](input_dict)

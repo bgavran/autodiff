@@ -7,7 +7,7 @@ x_len = 2  # number (dimension) of input
 xmax = 5
 xn_points = 2 ** p_exp
 
-wmax = 2
+wmax = 5
 wn_points = 2 ** p_exp
 
 
@@ -17,28 +17,14 @@ def create_meshgrid(lenn, maxx, points):
     return np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
 
 
-def gradient_meshgrid(graph_instance, wrt):
-    w_len = len(wrt)
-    mx = create_meshgrid(x_len, xmax, xn_points)
-    mw = create_meshgrid(w_len, wmax, wn_points)
-
-    dw = [np.zeros([wn_points for _ in range(w_len)]) for _ in range(w_len)]
-    # rearanging the array, based on the wrt argument, should work for 3 dimensions also
-    myorder = [int(i[1]) for i in wrt]
-    mw_input = [mw[i] for i in myorder]
-    # mw_input = mw
-
-    l = list(np.nditer(mx))
-
+def sum_function_outputs(graph_fun, mx, mw, dw, *fun_args):
     # iterating through every input, producing the output and summing the gradients
+    l = list(np.nditer(mx))
     for x in tqdm(l):
-
         y = if_func(x[0], x[1], 1)
-        input_dict = {"x0": x[0], "x1": x[1], "w0": mw_input[0], "w1": mw_input[1], "y": y}
+        input_dict = {"x0": x[0], "x1": x[1], "w0": mw[0], "w1": mw[1], "y": y}
 
-        graph_instance.compute_gradient(input_dict)
-        for i, var in enumerate(wrt):
-            dw[i] += graph_instance.gradient(wrt=var)
+        dw += graph_fun(input_dict, *fun_args)
 
     # start point (uniform distribution), end point (calculated gradient)
-    return mw, [i / mx[0].size for i in dw]
+    return dw / mx[0].size

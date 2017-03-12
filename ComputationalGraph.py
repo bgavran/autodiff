@@ -58,6 +58,9 @@ class Constant(Node):
         self.value = value
         self.all_names = [self.name]
 
+    def gradient(self, wrt=""):
+        return 0
+
     def __call__(self, *args, **kwargs):
         return self.value
 
@@ -66,7 +69,6 @@ class Variable(Node):
     def __init__(self, name=""):
         # All variables are, by default, placeholders?
         super().__init__(name)
-        # self.value = value
         self.all_names = [self.name]  # names of all the children nodes
 
     def gradient(self, wrt=""):
@@ -109,7 +111,7 @@ class Operation(Node):
             raise ValueError("Names of nodes have to be unique!", temp_names)
         return temp_names
 
-    def compute_gradient(self, input_dict):
+    def compute_derivatives(self, input_dict):
         """
 
         :param input_dict: dictionary of input variables
@@ -122,7 +124,11 @@ class Operation(Node):
         # Making each of the inputs do the same
         for child in self.children:
             if isinstance(child, Operation):
-                child.compute_gradient(input_dict)
+                child.compute_derivatives(input_dict)
+
+    def gradient_list(self, input_dict, wrt):
+        self.compute_derivatives(input_dict)
+        return np.array([self.gradient(wrt=var) for var in wrt])
 
     def gradient(self, wrt=""):
         grad_sum = 0
@@ -144,13 +150,13 @@ class CompositeOperation(Operation):
         raise NotImplementedError()
 
     def f(self, input_dict):
-        self.out.f(input_dict)
+        return self.out.f(input_dict)
 
     def df(self, input_dict, wrt=""):
-        self.out.df(input_dict, wrt=wrt)
+        return self.out.df(input_dict, wrt=wrt)
 
     def gradient(self, wrt=""):
         return self.out.gradient(wrt)
 
-    def compute_gradient(self, input_dict):
-        self.out.compute_gradient(input_dict)
+    def compute_derivatives(self, input_dict):
+        self.out.compute_derivatives(input_dict)

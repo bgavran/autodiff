@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
+from mpl_toolkits.mplot3d import Axes3D
 
 plt.ion()
 
@@ -7,9 +9,9 @@ plt.ion()
 class Plotter:
     def __init__(self):
         self.fig = plt.figure()
-        self.ax1 = self.fig.add_subplot(111)
-        # self.ax1 = self.fig.add_subplot(211)
-        # self.ax2 = self.fig.add_subplot(212)
+        # self.ax1 = self.fig.add_subplot(111)
+        self.ax1 = self.fig.add_subplot(211)
+        self.ax2 = self.fig.add_subplot(212, projection="3d")
         self.fig.show()
         plt.tight_layout()
         plt.pause(0.1)
@@ -27,16 +29,16 @@ class Plotter:
 
         self.ax1.clear()
         self.ax1.set_xlabel(wrt[0]), self.ax1.set_ylabel(wrt[1])
-        # reverse the values because we're minimizing the function
         l0 = wstart[0] - wend[0]
         l1 = wstart[1] - wend[1]
-        import numpy as np
-        self.ax1.streamplot(wstart[0], wstart[1], -wend[0], -wend[1], density=1.5, color=np.sqrt(l0 ** 2 + l1 ** 2),
+        # reverse the values because we're minimizing the function
+        self.ax1.streamplot(wstart[0], wstart[1], -wend[0], -wend[1], density=1.5,
+                            color=np.sqrt(wend[0] ** 2 + wend[1] ** 2),
                             cmap=plt.cm.winter)
         plt.pause(0.0001)
 
-    def plot_value(self):
-        """
-
-        :return:
-        """
+    def plot_value(self, x, y, z, wrt):
+        self.ax2.clear()
+        self.ax2.set_xlabel(wrt[0]), self.ax2.set_ylabel(wrt[1])
+        self.ax2.plot_surface(x, y, z, cmap=plt.cm.coolwarm)
+        plt.pause(0.0001)
