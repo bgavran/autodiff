@@ -8,17 +8,15 @@ class WeirdF(CompositeOperation):
         x0, x1 = self.children[0], self.children[1]
         w0, w1 = self.children[2], self.children[3]
         y = self.children[4]
-        umn0 = x0 * w0
-        umn1 = x1 * w1
-        sigm0 = Sigmoid([umn0])
-        umn = sigm0 * umn1
-        cost = SquareCost([umn, y])
-        self.out = cost
+        umn0 = w0
+        umn1 = w1
+        self.out = umn0 + umn1
+        # self.out = w0 + w1
 
 
-with_respect_to = ["w0", "w1"]
 inp = Variable(name="x0"), Variable(name="x1"), \
       Variable(name="w0"), Variable(name="w1"), Variable(name="y")
+with_respect_to = ["w0", "w1"]
 
 graph = WeirdF(inp, "comp_graph")
 

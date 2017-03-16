@@ -9,7 +9,7 @@ class Node:
     def __init__(self, name):
         Node.id += 1
         if name == "":
-            self.name = str(Node.id)
+            self.name = "id_" + str(Node.id)
         else:
             self.name = name
         self.all_names = None
@@ -19,33 +19,34 @@ class Node:
 
     def __mul__(self, other):
         from ops import Mul
-        if isinstance(other, Node):
-            return Mul([self, other])
-        elif isinstance(other, numbers.Number):
-            return Mul([Constant(other), self])
+        assert isinstance(other, Node) or isinstance(other, numbers.Number)
+        if isinstance(other, numbers.Number):
+            other = Constant(other)
+        return Mul([self, other])
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __add__(self, other):
         from ops import Add
-        if isinstance(other, Node):
-            return Add([self, other])
-        elif isinstance(other, numbers.Number):
-            return Add([self, Constant(other)])
+        assert isinstance(other, Node) or isinstance(other, numbers.Number)
+        if isinstance(other, numbers.Number):
+            other = Constant(other)
+        return Add([self, other])
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __neg__(self):
-        return Constant(0) - self
+        from ops import Negate
+        return Negate([self])
 
     def __sub__(self, other):
-        from ops import Subtract
-        if isinstance(other, Node):
-            return Subtract([self, other])
-        elif isinstance(other, numbers.Number):
-            return Subtract([self, Constant(other)])
+        from ops import Add, Negate
+        assert isinstance(other, Node) or isinstance(other, numbers.Number)
+        if isinstance(other, numbers.Number):
+            other = Constant(other)
+        return Add([self, Negate([other])])
 
     def __rsub__(self, other):
         return -self.__sub__(other)
@@ -107,8 +108,8 @@ class Operation(Node):
         temp_names = [self.name]
         for child in self.children:
             temp_names.extend(child.all_names)
-        if len(set(temp_names)) != len(temp_names):
-            raise ValueError("Names of nodes have to be unique!", temp_names)
+        # if len(set(temp_names)) != len(temp_names):
+        #     raise ValueError("Names of nodes have to be unique!", temp_names)
         return temp_names
 
     def compute_derivatives(self, input_dict):
@@ -127,6 +128,12 @@ class Operation(Node):
                 child.compute_derivatives(input_dict)
 
     def gradient_list(self, input_dict, wrt):
+        """
+
+        :param input_dict: input
+        :param wrt: a list where the gradient is computed for each item separately
+        :return: a list o gradients (in array form) of length len(wrt)
+        """
         self.compute_derivatives(input_dict)
         return np.array([self.gradient(wrt=var) for var in wrt])
 

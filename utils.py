@@ -2,19 +2,19 @@ import numpy as np
 from tqdm import tqdm
 from test_functions import *
 
-p_exp = 5
-x_len = 2  # number (dimension) of input
-xmax = 5
-xn_points = 2 ** p_exp
-
-wmax = 2
-wn_points = 2 ** p_exp
-
 
 class GraphMeshgrid:
     def __init__(self, with_respect_to):
-        self.x = create_meshgrid(x_len, xmax, xn_points)
-        self.w = create_meshgrid(len(with_respect_to), wmax, wn_points)
+        self.p_exp = 5
+
+        self.x_len = 2  # number (dimension) of input
+        self.xmax = 5
+        self.wmax = 2
+        self.xn_points = 2 ** self.p_exp
+        self.wn_points = 2 ** self.p_exp
+
+        self.x = GraphMeshgrid.create_meshgrid(self.x_len, self.xmax, self.xn_points)
+        self.w = GraphMeshgrid.create_meshgrid(len(with_respect_to), self.wmax, self.wn_points)
 
         # rearanging the array, based on the wrt argument, should work for 3 dimensions also
         myorder = [int(i[1]) for i in with_respect_to]
@@ -32,8 +32,10 @@ class GraphMeshgrid:
 
         return np.sum(all_x, axis=0) / len(l)
 
-
-def create_meshgrid(lenn, maxx, points):
-    # add offsetting with x_d, y_d and z_d?
-    step = 2 * maxx / points
-    return np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
+    @staticmethod
+    def create_meshgrid(lenn, maxx, points):
+        # add offsetting with x_d, y_d and z_d?
+        # step = 2 * maxx / points
+        # a = np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
+        epsilon = 1
+        return np.meshgrid(*(lenn * [np.linspace(-maxx, maxx, points) + epsilon]))
