@@ -17,39 +17,46 @@ class Node:
     def __str__(self):
         return self.name
 
-    def __mul__(self, other):
-        from ops import Mul
-        assert isinstance(other, Node) or isinstance(other, numbers.Number)
-        if isinstance(other, numbers.Number):
-            other = Constant(other)
-        return Mul([self, other])
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
     def __add__(self, other):
         from ops import Add
-        assert isinstance(other, Node) or isinstance(other, numbers.Number)
-        if isinstance(other, numbers.Number):
-            other = Constant(other)
-        return Add([self, other])
+        return Add(self, other)
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __neg__(self):
         from ops import Negate
-        return Negate([self])
+        return Negate(self)
 
     def __sub__(self, other):
-        from ops import Add, Negate
-        assert isinstance(other, Node) or isinstance(other, numbers.Number)
-        if isinstance(other, numbers.Number):
-            other = Constant(other)
-        return Add([self, Negate([other])])
+        return self.__add__(other.__neg__())
 
     def __rsub__(self, other):
         return -self.__sub__(other)
+
+    def __mul__(self, other):
+        from ops import Mul
+        return Mul(self, other)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        from ops import Recipr
+        return self.__mul__(Recipr(other))
+
+    def __rtruediv__(self, other):
+        return 1 / self.__truediv__(other)
+
+    @staticmethod
+    def _constant_wrapper(init_function):
+        def wrap_all_children(self, children, name):
+            for i, child in enumerate(children):
+                if isinstance(child, numbers.Number):
+                    children[i] = Constant(child)
+            return init_function(self, children, name)
+
+        return wrap_all_children
 
 
 class Constant(Node):
@@ -73,9 +80,7 @@ class Variable(Node):
         self.all_names = [self.name]  # names of all the children nodes
 
     def gradient(self, wrt=""):
-        if wrt == self.name:
-            return 1
-        return 0
+        return wrt == self.name
 
     def __call__(self, input_dict):
         try:
@@ -85,6 +90,7 @@ class Variable(Node):
 
 
 class Operation(Node):
+    @Node._constant_wrapper
     def __init__(self, children, name=""):
         super().__init__(name)
         self.children = children
@@ -118,7 +124,7 @@ class Operation(Node):
         :param input_dict: dictionary of input variables
         :return:
         """
-        self.check_names()
+        # self.check_names()
         # Computing the derivative with respect to each of the inputs
         self.last_grad = [self.df(input_dict, wrt=child.name) for child in self.children]
 

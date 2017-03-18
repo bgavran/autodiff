@@ -4,6 +4,8 @@ from test_functions import *
 
 
 class GraphMeshgrid:
+    epsilon = 1
+
     def __init__(self, with_respect_to):
         self.p_exp = 5
 
@@ -13,8 +15,8 @@ class GraphMeshgrid:
         self.xn_points = 2 ** self.p_exp
         self.wn_points = 2 ** self.p_exp
 
-        self.x = GraphMeshgrid.create_meshgrid(self.x_len, self.xmax, self.xn_points)
-        self.w = GraphMeshgrid.create_meshgrid(len(with_respect_to), self.wmax, self.wn_points)
+        self.x = GraphMeshgrid.create_meshgrid(self.x_len, self.xmax, self.xn_points, GraphMeshgrid.epsilon)
+        self.w = GraphMeshgrid.create_meshgrid(len(with_respect_to), self.wmax, self.wn_points, 0)
 
         # rearanging the array, based on the wrt argument, should work for 3 dimensions also
         myorder = [int(i[1]) for i in with_respect_to]
@@ -33,9 +35,11 @@ class GraphMeshgrid:
         return np.sum(all_x, axis=0) / len(l)
 
     @staticmethod
-    def create_meshgrid(lenn, maxx, points):
+    def create_meshgrid(lenn, maxx, points, offset):
+        # Why is the offset needed? So the mean of the x inputs is 1, whic would, in the case of uniform distribution of
+        # x, make it equal as if its not there? As if instead of x*w there's only w?
+
         # add offsetting with x_d, y_d and z_d?
         # step = 2 * maxx / points
         # a = np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
-        epsilon = 1
-        return np.meshgrid(*(lenn * [np.linspace(-maxx, maxx, points) + epsilon]))
+        return np.meshgrid(*(lenn * [np.linspace(-maxx, maxx, points) + offset]))
