@@ -29,8 +29,8 @@ class Plotter:
 
         self.ax1.clear()
         self.ax1.set_xlabel(wrt[0]), self.ax1.set_ylabel(wrt[1])
-        # reverse the values because we're minimizing the function
         norm = np.sqrt(wend[0] ** 2 + wend[1] ** 2)
+        # reverse the values because we're minimizing the function
         self.ax1.streamplot(wstart[0], wstart[1], -wend[0], -wend[1], density=1.5,
                             color=norm,
                             cmap=plt.cm.winter)

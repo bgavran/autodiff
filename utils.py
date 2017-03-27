@@ -1,43 +1,46 @@
 import numpy as np
 from tqdm import tqdm
-from test_functions import *
 
 
 class GraphMeshgrid:
     epsilon = 1
 
-    def __init__(self, with_respect_to):
-        self.p_exp = 5
+    def __init__(self, x, w, y, func):
+        self.x_vars = x
+        self.w_vars = w
+        self.w_names = [var.name for var in self.w_vars]
+        self.y_var = y
+        self.func = func
+        self.x_len = len(self.x_vars)  # number (dimension) of input
+        self.w_len = len(self.w_vars)
 
-        self.x_len = 2  # number (dimension) of input
         self.xmax = 5
         self.wmax = 2
+        self.p_exp = 5
         self.xn_points = 2 ** self.p_exp
         self.wn_points = 2 ** self.p_exp
 
         self.x = GraphMeshgrid.create_meshgrid(self.x_len, self.xmax, self.xn_points, GraphMeshgrid.epsilon)
-        self.w = GraphMeshgrid.create_meshgrid(len(with_respect_to), self.wmax, self.wn_points, 0)
+        self.w = GraphMeshgrid.create_meshgrid(self.w_len, self.wmax, self.wn_points, 0)
 
-        # rearanging the array, based on the wrt argument, should work for 3 dimensions also
-        myorder = [int(i[1]) for i in with_respect_to]
-        # ow = ordered weight
-        self.ow = [self.w[i] for i in myorder]
+        self.input_dict = {var.name: self.w[i] for i, var in enumerate(self.w_vars)}
 
     def apply_to_function(self, graph_function, *fun_args):
         # iterating through every input, producing the output and summing the gradients
         l = list(np.nditer(self.x))
-        all_x = np.array(
-            [graph_function({"x0": x[0], "x1": x[1], "w0": self.ow[0], "w1": self.ow[1], "y": if_func(x[0], x[1], 1)},
-                            *fun_args)
-             for x in
-             tqdm(l)])
+        res = []
+        for x in tqdm(l):
+            for i, var in enumerate(self.x_vars):
+                self.input_dict[var.name] = x[i]
+            self.input_dict[self.y_var.name] = self.func(x[0], x[1])
+            res.append(graph_function(self.input_dict, *fun_args))
 
-        return np.sum(all_x, axis=0) / len(l)
+        return np.sum(res, axis=0) / len(l)
 
     @staticmethod
     def create_meshgrid(lenn, maxx, points, offset):
-        # Why is the offset needed? So the mean of the x inputs is 1, whic would, in the case of uniform distribution of
-        # x, make it equal as if its not there? As if instead of x*w there's only w?
+        # Why is the offset needed? So the mean of the x inputs is 1, which would, in the case of uniform distribution
+        # of x, make it equal as if its not there? As if instead of x*w there's only w?
 
         # add offsetting with x_d, y_d and z_d?
         # step = 2 * maxx / points

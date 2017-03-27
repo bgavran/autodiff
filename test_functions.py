@@ -1,6 +1,6 @@
-def if_func(x1, x2, param):
+def if_func(x1, x2):
     if x1 >= 0:
-        return x2*param
+        return x2
     return 0
 
 
