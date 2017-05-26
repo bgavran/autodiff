@@ -1,8 +1,8 @@
-from ComputationalGraph import *
+from computational_graph import *
 
 
 class Add(Operation):
-    def __init__(self, first, second, name=""):
+    def __init__(self, first, second, name="Add"):
         super().__init__([first, second], name)
         self.first = self.children[0]
         self.second = self.children[1]
@@ -29,7 +29,7 @@ class Add(Operation):
 
 
 class Negate(Operation):
-    def __init__(self, node, name=""):
+    def __init__(self, node, name="Negate"):
         super().__init__([node], name)
         self.node = node
 
@@ -44,7 +44,7 @@ class Negate(Operation):
 
 
 class Mul(Operation):
-    def __init__(self, first, second, name=""):
+    def __init__(self, first, second, name="Mul"):
         super().__init__([first, second], name)
         self.first = self.children[0]
         self.second = self.children[1]
@@ -72,7 +72,7 @@ class Mul(Operation):
 
 
 class Recipr(Operation):
-    def __init__(self, node, name=""):
+    def __init__(self, node, name="Reciprocal"):
         super().__init__([node], name)
         self.node = self.children[0]
 
@@ -86,8 +86,24 @@ class Recipr(Operation):
         return 0
 
 
+class ReLU(Operation):
+    def __init__(self, node, name="ReLU"):
+        super().__init__([node], name)
+        self.node = self.children[0]
+
+    def f(self, input_dict):
+        return self.bigger_than_zero(input_dict) * self.node(input_dict)
+
+    def df(self, input_dict, wrt=""):
+        if wrt == self.node.name:
+            return self.bigger_than_zero(input_dict)
+
+    def bigger_than_zero(self, input_dict):
+        return self.node(input_dict) > 0
+
+
 class Sigmoid(Operation):
-    def __init__(self, node, name=""):
+    def __init__(self, node, name="Sigmoid"):
         super().__init__([node], name)
         self.node = self.children[0]
 
@@ -98,21 +114,8 @@ class Sigmoid(Operation):
         return self.f(input_dict) * (1 - self.f(input_dict))
 
 
-class SquareDiff(Operation):
-    def __init__(self, first, second, name=""):
-        super().__init__([first, second], name)
-        self.first = self.children[0]
-        self.second = self.children[1]
-
-    def f(self, input_dict):
-        return np.square(self.first(input_dict) - self.second(input_dict)) / 2
-
-    def df(self, input_dict, wrt=""):
-        return self.first(input_dict) - self.second(input_dict)
-
-
 class Gauss(Operation):
-    def __init__(self, node, name=""):
+    def __init__(self, node, name="Gauss"):
         super().__init__([node], name)
         self.node = self.children[0]
 
@@ -121,3 +124,16 @@ class Gauss(Operation):
 
     def df(self, input_dict, wrt=""):
         return -2 * self.node(input_dict) * np.exp(-np.square(self.node(input_dict)))
+
+
+class SquaredDifference(CompositeOperation):
+    def __init__(self, first, second, name="Squared difference"):
+        super().__init__([first, second], name)
+        self.first = self.children[0]
+        self.second = self.children[1]
+        self.graph()
+
+    def graph(self):
+        diff = self.first - self.second
+        self.out = diff * diff
+

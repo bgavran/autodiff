@@ -7,9 +7,10 @@ class Node:
     id = 0
 
     def __init__(self, name):
+        self.id = Node.id
         Node.id += 1
         if name == "":
-            self.name = "id_" + str(Node.id)
+            self.name = "id_" + str(self.id)
         else:
             self.name = name
         self.all_names = None
@@ -50,6 +51,12 @@ class Node:
 
     @staticmethod
     def _constant_wrapper(init_function):
+        """
+        Decorator for the Node class which wraps any normal number into a Constant
+        :param init_function:
+        :return: 
+        """
+
         def wrap_all_children(self, children, name):
             for i, child in enumerate(children):
                 if isinstance(child, numbers.Number):
@@ -60,17 +67,22 @@ class Node:
 
 
 class Constant(Node):
-    def __init__(self, value, name=""):
+    def __init__(self, value, name=None):
         assert isinstance(value, np.ndarray) or isinstance(value, numbers.Number)
+        if name is None:
+            name = "Constant"
         super().__init__(name)
         self.value = value
         self.all_names = [self.name]
+
+    def f(self, input_dict):
+        return self.value
 
     def gradient(self, wrt=""):
         return 0
 
     def __call__(self, *args, **kwargs):
-        return self.value
+        return self.f(*args, **kwargs)
 
 
 class Variable(Node):
@@ -79,14 +91,17 @@ class Variable(Node):
         super().__init__(name)
         self.all_names = [self.name]  # names of all the children nodes
 
-    def gradient(self, wrt=""):
-        return wrt == self.name
-
-    def __call__(self, input_dict):
+    def f(self, input_dict):
         try:
             return input_dict[self.name]
         except KeyError:
             raise KeyError("Must input value for variable", self.name)
+
+    def gradient(self, wrt=""):
+        return wrt == self.name
+
+    def __call__(self, *args, **kwargs):
+        return self.f(*args, **kwargs)
 
 
 class Operation(Node):
@@ -107,19 +122,18 @@ class Operation(Node):
 
     def check_names(self):
         """
-        Avoiding two nodes with the same name in the graph
+        Return names of all the nodes in the graph
         :return: list of all the node names in the tree below (and including) this node
-        :raises: ValueError if there are two equal names
         """
         temp_names = [self.name]
         for child in self.children:
             temp_names.extend(child.all_names)
-        # if len(set(temp_names)) != len(temp_names):
-        #     raise ValueError("Names of nodes have to be unique!", temp_names)
         return temp_names
 
     def compute_derivatives(self, input_dict):
         """
+        Computes the derivatives for specific inputs for the entire computational graph, w.r.t. all variables
+        Derivatives w.r.t. a certain variable are accumulated in the other method method, gradient()
 
         :param input_dict: dictionary of input variables
         :return:
@@ -133,33 +147,48 @@ class Operation(Node):
             if isinstance(child, Operation):
                 child.compute_derivatives(input_dict)
 
+    def gradient(self, wrt=""):
+        """
+        Accumulates all the gradients w.r.t. a specific variable
+        
+        :param wrt: function returns the gradient with respect to the variable whose name is provided here
+        :return: 
+        """
+        grad_sum = 0
+        for grad, child in zip(self.last_grad, self.children):
+            grad_sum += grad * child.gradient(wrt=wrt)
+        return grad_sum
+
     def gradient_list(self, input_dict, wrt):
         """
 
-        :param input_dict: input
+        :param input_dict: dictionary where keys are strings of inputs to comp graph (w and x) and values are either a
+                            2d array of all possible values (in case of weights) or just a single float (in case of x)
         :param wrt: a list where the gradient is computed for each item separately
         :return: a list o gradients (in array form) of length len(wrt)
         """
         self.compute_derivatives(input_dict)
         return np.array([self.gradient(wrt=var) for var in wrt])
 
-    def gradient(self, wrt=""):
-        grad_sum = 0
-        for grad, child in zip(self.last_grad, self.children):
-            grad_sum += grad * child.gradient(wrt=wrt)
-        return grad_sum
-
-    def __call__(self, input_dict):
-        return self.f(input_dict)
+    def __call__(self, *args, **kwargs):
+        return self.f(*args, **kwargs)
 
 
 class CompositeOperation(Operation):
     def __init__(self, children, name=""):
+        """
+        The inheriting class should call the graph() method in its own __init__()
+        :param children: 
+        :param name: 
+        """
         super().__init__(children, name)
         self.out = None
-        self.graph()
 
     def graph(self):
+        """
+        Graph should set the self.out parameter
+        :return: 
+        """
         raise NotImplementedError()
 
     def f(self, input_dict):

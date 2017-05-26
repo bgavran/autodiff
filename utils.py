@@ -1,48 +1,34 @@
-import numpy as np
-from tqdm import tqdm
+from graphviz import Digraph
+from computational_graph import CompositeOperation
 
 
-class GraphMeshgrid:
-    epsilon = 1
+def plot_comp_graph(node):
+    graph = Digraph("Computational graph", filename="comp_graph", engine="dot")
+    graph.attr(size="6,6")
+    graph.node_attr.update(color='lightblue2', style="filled")
+    graph.graph_attr.update(rankdir="BT")
 
-    def __init__(self, x, w, y, func):
-        self.x_vars = x
-        self.w_vars = w
-        self.w_names = [var.name for var in self.w_vars]
-        self.y_var = y
-        self.func = func
-        self.x_len = len(self.x_vars)  # number (dimension) of input
-        self.w_len = len(self.w_vars)
+    def exists_in_graph(node_id, graph):
+        nodes = [elem.split("->") for elem in graph.body]
+        list_of_elems = []
+        for elems in nodes:
+            if len(elems) > 1:
+                list_of_elems.append(int(elems[1]))
 
-        self.xmax = 5
-        self.wmax = 2
-        self.p_exp = 5
-        self.xn_points = 2 ** self.p_exp
-        self.wn_points = 2 ** self.p_exp
+        return node_id in list_of_elems
 
-        self.x = GraphMeshgrid.create_meshgrid(self.x_len, self.xmax, self.xn_points, GraphMeshgrid.epsilon)
-        self.w = GraphMeshgrid.create_meshgrid(self.w_len, self.wmax, self.wn_points, 0)
+    def add_recursively(node):
+        if isinstance(node, CompositeOperation):
+            node = node.out
+        color = "indianred1"
+        if hasattr(node, "children"):
+            color = "lightblue"
+            for child in node.children:
+                graph.edge(str(child.id), str(node.id))
+                if not exists_in_graph(child.id, graph):
+                    add_recursively(child)
+        graph.node(str(node.id), label=node.name, color=color)
 
-        self.input_dict = {var.name: self.w[i] for i, var in enumerate(self.w_vars)}
+    add_recursively(node)
 
-    def apply_to_function(self, graph_function, *fun_args):
-        # iterating through every input, producing the output and summing the gradients
-        l = list(np.nditer(self.x))
-        res = []
-        for x in tqdm(l):
-            for i, var in enumerate(self.x_vars):
-                self.input_dict[var.name] = x[i]
-            self.input_dict[self.y_var.name] = self.func(x[0], x[1])
-            res.append(graph_function(self.input_dict, *fun_args))
-
-        return np.sum(res, axis=0) / len(l)
-
-    @staticmethod
-    def create_meshgrid(lenn, maxx, points, offset):
-        # Why is the offset needed? So the mean of the x inputs is 1, which would, in the case of uniform distribution
-        # of x, make it equal as if its not there? As if instead of x*w there's only w?
-
-        # add offsetting with x_d, y_d and z_d?
-        # step = 2 * maxx / points
-        # a = np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
-        return np.meshgrid(*(lenn * [np.linspace(-maxx, maxx, points) + offset]))
+    graph.view()

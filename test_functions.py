@@ -1,7 +1,20 @@
+import numpy as np
+
+
+def zero_func(x1, x2):
+    # if 1 < x1 < 1.5 and 1 < x2 < 1.5:
+    #     return 5
+    return 0
+
+
 def if_func(x1, x2):
     if x1 >= 0:
         return x2
     return 0
+
+
+def random(x1, x2):
+    return np.random.randint(0, 5)
 
 
 def larger_than(x1, x2):
