@@ -137,3 +137,22 @@ class SquaredDifference(CompositeOperation):
         diff = self.first - self.second
         self.out = diff * diff
 
+
+class DenseLayer(CompositeOperation):
+    def __init__(self, inputs, activation_fn=None, name="FCLayer"):
+        """
+
+        :param inputs: list of inputs
+        :param activation_fn:
+        :param name:
+        """
+        super().__init__(np.array(inputs), name)
+        self.weights = np.array([Variable(name="_w" + str(Node.id)) for i in range(len(inputs))])
+        self.activation_fn = activation_fn
+        self.graph()
+
+    def graph(self):
+        summ = np.sum(self.weights * self.children)
+        if self.activation_fn is not None:
+            summ = self.activation_fn(summ)
+        self.out = summ

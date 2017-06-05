@@ -2,28 +2,44 @@ digraph "Computational graph" {
 	graph [rankdir=BT]
 	node [color=lightblue2 style=filled]
 	size="6,6"
-		15 -> 16
-		12 -> 15
-		11 -> 12
-		9 -> 11
-		0 -> 9
+		29 -> 31
+		28 -> 29
+		25 -> 28
+		24 -> 25
+		22 -> 24
+		21 -> 22
+		18 -> 21
+		15 -> 18
+	15 [label=_w15 color=indianred1]
+		0 -> 18
 	0 [label=x0 color=indianred1]
-		3 -> 9
-	3 [label=w0 color=indianred1]
-	9 [label=Mul color=lightblue]
-		10 -> 11
-		1 -> 10
+	18 [label=Mul color=lightblue]
+		19 -> 21
+		16 -> 19
+	16 [label=_w16 color=indianred1]
+		1 -> 19
 	1 [label=x1 color=indianred1]
-		4 -> 10
-	4 [label=w1 color=indianred1]
-	10 [label=Mul color=lightblue]
-	11 [label=Add color=lightblue]
-	12 [label=ReLU color=lightblue]
-		14 -> 15
-		2 -> 14
-	2 [label=y color=indianred1]
-	14 [label=Negate color=lightblue]
-	15 [label=Add color=lightblue]
-		15 -> 16
-	16 [label=Mul color=lightblue]
+	19 [label=Mul color=lightblue]
+	21 [label=Add color=lightblue]
+		20 -> 22
+		17 -> 20
+	17 [label=_w17 color=indianred1]
+		2 -> 20
+	2 [label=x2 color=indianred1]
+	20 [label=Mul color=lightblue]
+	22 [label=Add color=lightblue]
+		23 -> 24
+	23 [label=Constant color=indianred1]
+	24 [label=Mul color=lightblue]
+	25 [label=Sigmoid color=lightblue]
+		27 -> 28
+		3 -> 27
+	3 [label=y color=indianred1]
+	27 [label=Negate color=lightblue]
+	28 [label=Add color=lightblue]
+		28 -> 29
+	29 [label=Mul color=lightblue]
+		30 -> 31
+	30 [label=Constant color=indianred1]
+	31 [label=Add color=lightblue]
 }

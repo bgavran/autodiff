@@ -24,6 +24,8 @@ def plot_comp_graph(node):
         if hasattr(node, "children"):
             color = "lightblue"
             for child in node.children:
+                if isinstance(child, CompositeOperation):
+                    child = child.out
                 graph.edge(str(child.id), str(node.id))
                 if not exists_in_graph(child.id, graph):
                     add_recursively(child)
