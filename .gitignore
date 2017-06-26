@@ -1,5 +1,7 @@
 # Added by bgavran3
 .idea
+comp_graph.pdf
+comp_graph
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

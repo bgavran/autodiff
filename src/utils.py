@@ -1,5 +1,6 @@
 from graphviz import Digraph
-from computational_graph import CompositeOperation
+
+from core.computational_graph import CompositeOperation
 
 
 def plot_comp_graph(node):
@@ -21,7 +22,7 @@ def plot_comp_graph(node):
         if isinstance(node, CompositeOperation):
             node = node.out
         color = "indianred1"
-        if hasattr(node, "children"):
+        if len(node.children) > 0:
             color = "lightblue"
             for child in node.children:
                 if isinstance(child, CompositeOperation):

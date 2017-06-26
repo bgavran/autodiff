@@ -5,14 +5,16 @@ from tqdm import tqdm
 class GraphMeshgrid:
     epsilon = 0
 
-    def __init__(self, x, w, y, func):
-        self.x_vars = x
-        self.w_vars = w
-        self.w_names = [var.name for var in self.w_vars]
+    def __init__(self, x_vars, w_vars, y, func):
+        # TODO write  documentation
+        # w_var needs to be two dimensional
+        self.x_vars = x_vars
+        self.w_vars = w_vars
+        self.w_names = ["w0", "w1"]
         self.y_var = y
         self.func = func
         self.x_len = len(self.x_vars)  # number (dimension) of input
-        self.w_len = len(self.w_vars)
+        self.w_len = 2
 
         self.xmax = 5
         self.wmax = 2
@@ -23,7 +25,7 @@ class GraphMeshgrid:
         self.x = GraphMeshgrid.create_meshgrid(self.x_len, self.xmax, self.xn_points, GraphMeshgrid.epsilon)
         self.w = GraphMeshgrid.create_meshgrid(self.w_len, self.wmax, self.wn_points, 0)
 
-        self.input_dict = {var.name: self.w[i] for i, var in enumerate(self.w_vars)}
+        self.input_dict = {self.w_names[i]: self.w[i] for i in range(self.w_len)}
 
     def apply_to_function(self, graph_function, *fun_args):
         """
@@ -33,9 +35,9 @@ class GraphMeshgrid:
         :param fun_args: 
         :return: 
         """
-        l = list(np.nditer(self.x))
+        x_list = list(np.nditer(self.x))
         res = []
-        for x in tqdm(l):
+        for x in tqdm(x_list):
             for i, var in enumerate(self.x_vars):
                 self.input_dict[var.name] = x[i]
             self.input_dict[self.y_var.name] = self.func(x[0], x[1])
