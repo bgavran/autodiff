@@ -61,5 +61,5 @@ class GraphMeshgrid:
         """
         # add offsetting with x_d, y_d and z_d?
         # step = 2 * maxx / points
-        # a = np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
+        # true = np.meshgrid(*(lenn * [np.arange(-maxx, maxx, step)]))
         return np.meshgrid(*(lenn * [np.linspace(-maxx, maxx, points) + offset]))

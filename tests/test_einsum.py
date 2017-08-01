@@ -48,14 +48,16 @@ class TestEinSum(TestCase):
 
         np.testing.assert_allclose(my_val, tf_val)
 
-    def test_threevars_df_first(self):
-        tf_graph = tf.einsum("dt,tp,pr->dtpr", self.tf_w0, self.tf_w1, self.tf_w2)
-        graph = EinSum("dt,tp,pr->dtpr", self.var_w0, self.var_w1, self.var_w2)
-        with tf.Session():
-            tf_grads = tf.gradients(tf_graph, self.tf_w0)[0].eval()
-
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="w0")
-
-        np.testing.assert_allclose(my_grads, tf_grads)
+    # def test_threevars_df_third(self):
+    #     tf_graph = tf.einsum("dt,tp,pr->dtp", self.tf_w0, self.tf_w1, self.tf_w2)
+    #     graph = EinSum("dt,tp,pr->dtp", self.var_w0, self.var_w1, self.var_w2)
+    #     with tf.Session():
+    #         tf_grads = tf.gradients(tf_graph, self.tf_w2)[0].eval()
+    #     print(tf_grads)
+    #
+    #     graph.compute_derivatives(self.input_dict)
+    #     my_grads = graph.accumulate_all_gradients(wrt="w2")
+    #
+    #     print(my_grads)
+    #     np.testing.assert_allclose(my_grads, tf_grads)
 

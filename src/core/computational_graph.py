@@ -13,7 +13,7 @@ class Node:
             self.name = "id_" + str(self.id)
         else:
             self.name = name
-        self.all_names = None
+        self.all_ids = None
 
     def __str__(self):
         return self.name
@@ -33,7 +33,7 @@ class Node:
         return self.__add__(other.__neg__())
 
     def __rsub__(self, other):
-        return -self.__add__(other)
+        return self.__neg__().__add__(other)
 
     def __mul__(self, other):
         from core.ops import Mul
@@ -50,12 +50,16 @@ class Node:
         from core.ops import MatMul
         return MatMul(other, self)
 
+    def __imatmul__(self, other):
+        return self.__matmul__(other)
+
     def __truediv__(self, other):
         from core.ops import Recipr
         return self.__mul__(Recipr(other))
 
     def __rtruediv__(self, other):
-        return 1 / self.__truediv__(other)
+        from core.ops import Recipr
+        return Recipr(self).__mul__(other)
 
     @staticmethod
     def _constant_wrapper(init_function):
@@ -73,30 +77,31 @@ class Node:
 
         return wrap_all_children
 
-    def f(self, input_dict):
-        raise NotImplementedError()
-
-    def __call__(self, *args, **kwargs):
-        return self.f(*args, **kwargs)
-
 
 class Operation(Node):
+    epsilon = 1e-8
+
     @Node._constant_wrapper
     def __init__(self, children, name=""):
         super().__init__(name)
         self.children = children
         self.last_df = None
-        self.all_names = self.check_names()
+        self.all_ids = self.check_ids()
 
-    def check_names(self):
-        """
-        Return names of all the nodes in the graph
-        :return: list of all the node names in the tree below (and including) this node
-        """
-        temp_names = [self.name]
+    def check_ids(self):
+        temp_ids = {self.id}
         for child in self.children:
-            temp_names.extend(child.all_names)
-        return temp_names
+            temp_ids |= child.all_ids
+        return temp_ids
+
+    def find_node_by_id(self, node_id):
+        if self.id == node_id:
+            return self
+        else:
+            for child in self.children:
+                node = child.find_node_by_id(node_id)
+                if node is not None:
+                    return node
 
     def compute_derivatives(self, input_dict, grad=None):
         """
@@ -159,6 +164,9 @@ class Operation(Node):
         :return:
         """
         raise NotImplementedError()
+
+    def __call__(self, *args, **kwargs):
+        return self.f(*args, **kwargs)
 
 
 class Constant(Operation):
@@ -223,7 +231,7 @@ class CompositeOperation(Operation):
         return self.out.f(input_dict)
 
     def df(self, input_dict, wrt="", grad=None):
-        return self.out.df(input_dict, wrt=wrt)
+        return self.out.df(input_dict, wrt=wrt, grad=grad)
 
     def accumulate_all_gradients(self, wrt=""):
         return self.out.accumulate_all_gradients(wrt)

@@ -62,6 +62,9 @@ class TestOneArgOperations(TestCase):
     def test_negate(self):
         self.oneop(Negate, tf.negative)
 
+    def test_log(self):
+        self.oneop(Log, tf.log)
+
 
 class TestTwoArgScalarOperations(TestCase):
     def setUp(self):

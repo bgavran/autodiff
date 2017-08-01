@@ -1,6 +1,6 @@
 # Added by bgavran3
 .idea
-comp_graph.pdf
+src/sq_diff.pdf
 comp_graph
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -30,7 +30,7 @@ wheels/
 *.egg
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
+#  Usually these files are written by true python script from true template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec

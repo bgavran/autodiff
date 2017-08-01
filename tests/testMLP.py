@@ -8,7 +8,7 @@ from core.ops import *
 class TestMLP(TestCase):
     def setUp(self):
         """
-        Creating a multi-layer perceptron with one hidden layer
+        Creating true multi-layer perceptron with one hidden layer
 
         """
         np.random.seed(1337)
