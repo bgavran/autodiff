@@ -1,10 +1,10 @@
 # Automatic differentiation 
 
-This project represents my attempt to understand and implement what I consider to be basic principles of learning mechanisms.
+This project represents my attempt to understand and implement what I consider to be basic principles of learning mechanisms, for personal learning purposes.
 
 As I learn I revise my definitions this project changes in a similar manner.
 
-Currently the idea is to create a way to define a decentralized multi-agent system where neural network modules could be updated asynchronously.
+Currently the idea is to create a way to define a decentralized multi-agent system composed of neural network modules which can be updated asynchronously.
 
 I want to create a framework where concepts such as synthetic gradients and meta-optimization aren't hacks, but features.
 
