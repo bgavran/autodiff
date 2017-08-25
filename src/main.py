@@ -2,8 +2,6 @@ from core.ops import *
 from utils import *
 import matplotlib.pyplot as plt
 
-np.random.seed(1337)
-
 # graph = SquaredDifference(x1, w1)
 # graph = TestRecursivelyComposite(x1, count=2, expand_when_graphed=True) * 2
 
