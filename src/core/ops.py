@@ -216,6 +216,7 @@ class ReLU(Operation):
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt="", grad=None):
+        # TODO higher order gradient doesn't seem to be correct?
         return self * Recipr(self)
 
     def bigger_than_zero(self, input_dict):
