@@ -41,7 +41,7 @@ class TestMLP(TestCase):
         with tf.Session():
             tf_val = self.tf_graph.eval()
 
-        my_val = self.graph.f(self.input_dict)
+        my_val = self.graph.eval(self.input_dict)
 
         np.testing.assert_allclose(my_val, tf_val)
 
@@ -49,8 +49,8 @@ class TestMLP(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_graph, self.tf_x)[0].eval()
 
-        self.graph.compute_derivatives(self.input_dict)
-        my_grads = self.graph.accumulate_all_gradients(wrt="x")
+        grad_ops = Grad(self.graph, wrt="x")
+        my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
 
@@ -58,8 +58,8 @@ class TestMLP(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_graph, self.tf_w1)[0].eval()
 
-        self.graph.compute_derivatives(self.input_dict)
-        my_grads = self.graph.accumulate_all_gradients(wrt="w1")
+        grad_ops = Grad(self.graph, wrt="w1")
+        my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
 
@@ -67,7 +67,7 @@ class TestMLP(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_graph, self.tf_w2)[0].eval()
 
-        self.graph.compute_derivatives(self.input_dict)
-        my_grads = self.graph.accumulate_all_gradients(wrt="w2")
+        grad_ops = Grad(self.graph, wrt="w2")
+        my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)

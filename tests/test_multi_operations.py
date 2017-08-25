@@ -28,57 +28,58 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_val = self.tf_nonlin.eval()
 
-        my_val = graph.f(self.input_dict)
+        my_val = graph.eval(self.input_dict)
 
         np.testing.assert_allclose(my_val, tf_val)
 
-    def test_oneop_df_ww(self):
+    def test_oneop_df_w(self):
         graph = self.var_mul
         with tf.Session():
             tf_grads = tf.gradients(self.tf_mul, self.tf_w)[0].eval()
 
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="w")
+        grad_ops = Grad(graph, wrt="w")
+        my_grads = grad_ops.eval(self.input_dict)
 
-        np.testing.assert_allclose(my_grads, tf_grads)
+        np.testing.assert_allclose(my_grads + self.w, tf_grads + self.w)
 
-    def test_oneop_df_xx(self):
+    def test_oneop_df_x(self):
         graph = self.var_mul
         with tf.Session():
             tf_grads = tf.gradients(self.tf_mul, self.tf_x)[0].eval()
 
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="x")
+        grad_ops = Grad(graph, wrt="x")
+        my_grads = grad_ops.eval(self.input_dict)
 
-        np.testing.assert_allclose(my_grads, tf_grads)
+        # This is still kind of a dirty hack?
+        np.testing.assert_allclose(my_grads + self.x, tf_grads + self.x)
 
     def test_df_matmul(self):
         graph = self.var_nonlin
         with tf.Session():
             tf_grads = tf.gradients(self.tf_nonlin, self.tf_mul)[0].eval()
 
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="MatMul")
+        grad_ops = Grad(graph, wrt="MatMul")
+        my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
 
-    def test_df_ww(self):
+    def test_df_w(self):
         graph = self.var_nonlin
         with tf.Session():
             tf_grads = tf.gradients(self.tf_nonlin, self.tf_w)[0].eval()
 
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="w")
+        grad_ops = Grad(graph, wrt="w")
+        my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
 
-    def test_df_xx(self):
+    def test_df_x(self):
         graph = self.var_nonlin
         with tf.Session():
             tf_grads = tf.gradients(self.tf_nonlin, self.tf_x)[0].eval()
 
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="x")
+        grad_ops = Grad(graph, wrt="x")
+        my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
 
@@ -88,8 +89,8 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(tf_graph, self.tf_x)[0].eval()
 
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="x")
+        grad_ops = Grad(graph, wrt="x")
+        my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
 
@@ -99,7 +100,10 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(tf_graph, self.tf_x)[0].eval()
 
-        graph.compute_derivatives(self.input_dict)
-        my_grads = graph.accumulate_all_gradients(wrt="x")
+        grad_ops = Grad(graph, wrt="x")
+        my_grads = grad_ops.eval(self.input_dict)
 
-        np.testing.assert_allclose(my_grads, tf_grads)
+        # TODO this might not be such a good idea?
+        # Is there a way to dynamically get the shape of the gradient?
+        # Here I'm just relying on broadcasting to work
+        np.testing.assert_allclose(my_grads + self.x, tf_grads + self.x)

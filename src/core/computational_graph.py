@@ -1,19 +1,23 @@
+import os
 import numbers
-
+import collections
 import numpy as np
+from contextlib import contextmanager
 
 
 class Node:
     id = 0
+    context = []
 
     def __init__(self, name):
         self.id = Node.id
         Node.id += 1
+
+        self.context = Node.context.copy()
         if name == "":
-            self.name = "id_" + str(self.id)
+            self.name = os.path.join("id_" + str(self.id))
         else:
-            self.name = name
-        self.all_ids = None
+            self.name = os.path.join(name)
 
     def __str__(self):
         return self.name
@@ -61,112 +65,136 @@ class Node:
         from core.ops import Recipr
         return Recipr(self).__mul__(other)
 
+    def get_color(self):
+        if isinstance(self, CompositeOperation):
+            return "goldenrod3"
+        if isinstance(self, Variable):
+            return "indianred1"
+        elif isinstance(self, Constant):
+            return "gray"
+        else:
+            return "lightblue"
+
+    def get_shape(self):
+        if isinstance(self, CompositeOperation):
+            return "doubleoctagon"
+        if isinstance(self, Variable) or isinstance(self, Constant):
+            return "box"
+        else:
+            return "oval"
+
+    def get_edge_style(self):
+        from core.ops import Grad
+        if isinstance(self, Grad):
+            return "dashed"
+        else:
+            return "filled"
+
+    def get_edge_arrow(self):
+        return "normal"
+
     @staticmethod
     def _constant_wrapper(init_function):
         """
         Decorator for the Node class which wraps any normal number into a Constant
         :param init_function:
-        :return: 
+        :return:
         """
 
         def wrap_all_children(self, children, name):
             for i, child in enumerate(children):
                 if isinstance(child, numbers.Number):
                     children[i] = Constant(child)
+                assert isinstance(children[i], Node)
             return init_function(self, children, name)
 
         return wrap_all_children
 
+    @staticmethod
+    @contextmanager
+    def add_context(ctx):
+        assert isinstance(ctx, list)
+        for item in ctx:
+            if item not in Node.context:
+                Node.context.extend([item])
+        try:
+            yield
+        finally:
+            Node.context.pop()
+
+    def get_node(self):
+        return self
+
+    def get_node_for_graph(self):
+        return self
+
+    def add_node_with_context(self, digraph, ctx):
+        """
+        Add just the node (not the connections, not the children) to the respective subgraph
+        :param digraph:
+        :param ctx:
+        :return:
+        """
+        if len(ctx):
+            with digraph.subgraph(name="cluster" + str(ctx[0])) as subgraph:
+                subgraph.attr(color="blue")
+                subgraph.attr(label=ctx[0])
+
+                self.add_node_with_context(subgraph, ctx[1:])
+        else:
+            digraph.add_node(self)
+
+    def add_node_subgraph_to_plot_graph(self, digraph):
+        if str(self.id) not in digraph.set_of_added_nodes:
+            # Add node
+            self.add_node_with_context(digraph, self.context)
+
+            # Add connections to children
+            for child in self.children:
+                digraph.add_edge(child, self)
+
+            # Make each of the children do the same
+            for child in self.children:
+                child.add_node_subgraph_to_plot_graph(digraph)
+
 
 class Operation(Node):
-    epsilon = 1e-8
+    epsilon = 1e-12
 
     @Node._constant_wrapper
     def __init__(self, children, name=""):
         super().__init__(name)
         self.children = children
-        self.last_df = None
-        self.all_ids = self.check_ids()
 
-    def check_ids(self):
-        temp_ids = {self.id}
+    def __iter__(self):
+        yield self
         for child in self.children:
-            temp_ids |= child.all_ids
-        return temp_ids
+            yield from child
+
+    def topo_sort(self):
+        # iterator with duplicates
+        ll = reversed(list(self))
+
+        # returns list without duplicates
+        return list(collections.OrderedDict.fromkeys(ll))
+
+    def all_nodes(self):
+        return set(self)
 
     def find_node_by_id(self, node_id):
-        if self.id == node_id:
-            return self
-        else:
-            for child in self.children:
-                node = child.find_node_by_id(node_id)
-                if node is not None:
-                    return node
+        for node in self.all_nodes():
+            if node.id == node_id:
+                return node
+        raise ValueError("Node with id", node_id, "doesn't exist!")
 
-    def compute_derivatives(self, input_dict, grad=None):
-        """
-        Computes the derivatives for specific inputs for the *entire* computational graph, w.r.t. all variables
-        Derivatives w.r.t. a *certain variable* are accumulated in the other method method, gradient()
-
-        :param input_dict: dictionary of input variables
-        :param grad:
-        :return:
-        """
-        # self.check_names()
-
-        if grad is None:
-            grad = np.ones_like(self.f(input_dict))
-        # Computing the derivative with respect to each of the inputs
-        self.last_df = [self.df(input_dict, wrt=child.name, grad=grad) for child in self.children]
-
-        # Making each of the inputs do the same
-        for i, child in enumerate(self.children):
-            if isinstance(child, Operation):
-                child.compute_derivatives(input_dict, grad=self.last_df[i])
-
-    def accumulate_all_gradients(self, wrt=""):
-        """
-        Accumulates all the gradients w.r.t. a specific variable
-        
-        :param wrt: function returns the gradient with respect to the variable whose name is provided here
-        :return: gradient in the shape of the wrt variable
-        """
-
-        grad_sum = 0
-        for i, child in enumerate(self.children):
-            if wrt == child.name:
-                grad_sum += self.last_df[i]
-            else:
-                grad_sum += child.accumulate_all_gradients(wrt=wrt)
-        return grad_sum
-
-    def accumulate_all_gradients_in_list(self, input_dict, wrt_list):
-        """
-
-        :param input_dict: dictionary where keys are strings of inputs to comp graph (w and x) and values are either a
-                            2d array of all possible values (in case of weights) or just a single float (in case of x)
-        :param wrt_list: a list where the gradient is computed for each item separately
-        :return: a list o gradients of length len(wrt)
-        """
-        self.compute_derivatives(input_dict)
-        return [self.accumulate_all_gradients(wrt=var) for var in wrt_list]
-
-    def f(self, input_dict):
+    def eval(self, input_dict):
         raise NotImplementedError()
 
-    def df(self, input_dict, wrt="", grad=None):
-        """
-        Should always return a tensor in the shape of one of its input variables
-
-        :param input_dict:
-        :param wrt:
-        :param grad:
-        :return:
-        """
+    def graph_df(self, wrt, grad=None):
         raise NotImplementedError()
 
     def __call__(self, *args, **kwargs):
-        return self.f(*args, **kwargs)
+        return self.eval(*args, **kwargs)
 
 
 class Constant(Operation):
@@ -176,12 +204,11 @@ class Constant(Operation):
             name = str(value)
         super().__init__([], name)
         self.value = value
-        self.all_names = [self.name]
 
-    def f(self, input_dict):
+    def eval(self, input_dict):
         return self.value
 
-    def df(self, input_dict, wrt="", grad=None):
+    def graph_df(self, wrt="", grad=None):
         return 0
 
 
@@ -189,52 +216,132 @@ class Variable(Operation):
     def __init__(self, name=""):
         """
 
-        Right now, all variables are placeholders? There are no predefined values, all Variables need their values to be
-        fed in
+        Right now, all variables are placeholders?
+        All variables need their values to be fed in.
+        This class needs to be separated into Variables which have their value? Something like a constant?
+        Except it changes?
+
         :param name:
         """
         super().__init__([], name)
-        self.all_names = [self.name]  # names of all the children nodes
-        self.last_f = None
 
-    def f(self, input_dict):
+    def eval(self, input_dict):
         try:
             return input_dict[self.name]
         except KeyError:
             raise KeyError("Must input value for variable", self.name)
 
-    def df(self, input_dict, wrt="", grad=None):
-        if wrt == self.name:
-            return grad * np.ones_like(self(input_dict))
-        else:
-            return np.zeros_like(self(input_dict))
+    def graph_df(self, wrt="", grad=None):
+        if self.name == wrt:
+            return grad
+        return 0
+
+
+class Identity(Operation):
+    def __init__(self, node, name="Identity"):
+        super().__init__([node], name)
+        self.node = self.children[0]
+
+    def eval(self, input_dict):
+        return self.node.eval(input_dict)
+
+    def graph_df(self, wrt="", grad=None):
+        return self.node.graph_df(wrt, grad)
+
+
+class CompositeWrapper:
+    @staticmethod
+    def from_function(fn):
+        def wrap_in_composite(*fn_args, expand_when_graphed=True):
+            op = CompositeOperation(children=fn_args,
+                                    name=fn.__name__,
+                                    expand_when_graphed=expand_when_graphed)
+
+            op.graph = lambda: fn(*op.children)
+            op.out = op.init_graph()
+
+            return op
+
+        return wrap_in_composite
+
+    @staticmethod
+    def from_graph_df(fn):
+        def wrap_in_composite(instance, wrt, grad=None, expand_when_graphed=False):
+            # TODO what are the children of this CompOp?
+            """
+            Here the w.r.t. parameter is not known so the actual children also can't be known...?
+
+            """
+            name = "Gradient graph of " + instance.name + " "
+            children = [grad] + instance.children
+            op = CompositeOperation(children,
+                                    name=name,
+                                    expand_when_graphed=expand_when_graphed)
+
+            op.graph = lambda: fn(instance, wrt, grad)
+            op.out = op.init_graph()
+
+            return op
+
+        return wrap_in_composite
 
 
 class CompositeOperation(Operation):
-    def __init__(self, children, name=""):
+    def __init__(self, children, name="", expand_when_graphed=True):
         """
-        The inheriting class should call the graph() method in its own __init__()
-        :param children: 
+
+        :param children:
         :param name: 
         """
         super().__init__(children, name)
+        self.expand_when_graphed = expand_when_graphed
         self.out = None
+
+    def init_graph(self):
+        new_ctx = self.name + str(self.id)
+        ctx = self.context + [new_ctx]
+        with Node.add_context(ctx):
+            out = self.graph()
+        assert out is not None
+
+        if isinstance(out, CompositeOperation):
+            return out.get_node()
+        else:
+            return out
+
+    def get_node(self):
+        return self.out
+
+    def get_node_for_graph(self):
+        if self.expand_when_graphed:
+            if isinstance(self.out, CompositeOperation):
+                return self.out.get_node_for_graph()
+            else:
+                return self.out
+        else:
+            return self
+
+    def add_node_subgraph_to_plot_graph(self, digraph):
+        if self.expand_when_graphed:
+            self.get_node_for_graph().add_node_subgraph_to_plot_graph(digraph)
+        else:
+            Operation.add_node_subgraph_to_plot_graph(self, digraph)
+
+    def __iter__(self):
+        yield self
+        yield from self.out
+
+    def eval(self, input_dict):
+        return self.out.eval(input_dict)
+
+    @CompositeWrapper.from_graph_df
+    def graph_df(self, wrt="", grad=None):
+        return self.out.graph_df(wrt, grad)
 
     def graph(self):
         """
-        Graph should set the self.out parameter
-        :return: 
+        In this method all the operations on the children need to be defined and the result returned.
+
+        :return:
         """
         raise NotImplementedError()
-
-    def f(self, input_dict):
-        return self.out.f(input_dict)
-
-    def df(self, input_dict, wrt="", grad=None):
-        return self.out.df(input_dict, wrt=wrt, grad=grad)
-
-    def accumulate_all_gradients(self, wrt=""):
-        return self.out.accumulate_all_gradients(wrt)
-
-    def compute_derivatives(self, input_dict, grad=None):
-        self.out.compute_derivatives(input_dict, grad)
