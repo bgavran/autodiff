@@ -34,4 +34,4 @@ Composition of operations can be abstracted and the inner operations hidden with
 
 `Grad` is a CompositeOperation which takes an operation and returns a new DAG representing the gradient of that operation with respect to a provided variable.
 
-Since Grad is a CompositeOperation, it's graph can be taken in exactly the same way.
+Since Grad is a CompositeOperation, it's gradient can be taken in exactly the same way.

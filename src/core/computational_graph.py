@@ -139,19 +139,6 @@ class Node:
         else:
             digraph.add_node(self)
 
-    def add_node_subgraph_to_plot_graph(self, digraph):
-        if str(self.id) not in digraph.set_of_added_nodes:
-            # Add node
-            self.add_node_with_context(digraph, self.context)
-
-            # Add connections to children
-            for child in self.children:
-                digraph.add_edge(child, self)
-
-            # Make each of the children do the same
-            for child in self.children:
-                child.add_node_subgraph_to_plot_graph(digraph)
-
 
 class Operation(Node):
     epsilon = 1e-12
@@ -190,6 +177,19 @@ class Operation(Node):
 
     def __call__(self, *args, **kwargs):
         return self.eval(*args, **kwargs)
+
+    def add_node_subgraph_to_plot_graph(self, digraph):
+        if str(self.id) not in digraph.set_of_added_nodes:
+            # Add node
+            self.add_node_with_context(digraph, self.context)
+
+            # Add connections to children
+            for child in self.children:
+                digraph.add_edge(child, self)
+
+            # Make each of the children do the same
+            for child in self.children:
+                child.add_node_subgraph_to_plot_graph(digraph)
 
 
 class Constant(Operation):
@@ -307,10 +307,7 @@ class CompositeOperation(Operation):
 
     def get_node_for_graph(self):
         if self.expand_when_graphed:
-            if isinstance(self.out, CompositeOperation):
-                return self.out.get_node_for_graph()
-            else:
-                return self.out
+            return self.out.get_node_for_graph()
         else:
             return self
 
@@ -325,7 +322,7 @@ class CompositeOperation(Operation):
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad=None):
-        gr = Grad(self.get_node(),
+        gr = Grad(self.out,
                   wrt=wrt,
                   initial_grad=grad,
                   name=self.name)
@@ -367,6 +364,15 @@ class Grad(CompositeOperation):
 
     # TODO 2nd gradients problem!
     """
+    Create a unit test for Mul, with many inputs?
+    And also a bunch of unit tests for higher order gradients?
+    
+    Something related to taking gradients of CompositeGrad who has children that don't exist anymore?
+    The problem is that Grad doesn't have to actually be connected to its children.
+    And then when we take Grad of Grad we're trying to get df w.r.t. it's children but it turns out to be 
+    zero.
+    Which is maybe okay?
+    
     
     """
 
@@ -374,9 +380,7 @@ class Grad(CompositeOperation):
         out_node = self.children[0]
         nodes = out_node.topo_sort()
 
-        try:
-            next(node for node in nodes if node == self.wrt)
-        except StopIteration:
+        if self.wrt not in nodes:
             raise ValueError("Node with the name \"" + str(self.wrt) + "\" is not in the graph!")
             # return Constant(0, name=str(self.wrt) + "_zero")
 
@@ -387,6 +391,7 @@ class Grad(CompositeOperation):
             dct[node.id] = Add(*dct[node.id], name=node.name + "_grad_sum")
 
             for child in set(node.children):
-                dct[child.id].append(node.graph_df(child, grad=dct[node.id]))
+                app = node.graph_df(child, grad=dct[node.id])
+                dct[child.id].append(app)
 
         return dct[self.wrt.id]

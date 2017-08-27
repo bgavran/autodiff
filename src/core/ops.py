@@ -2,22 +2,6 @@ import re
 from core.computational_graph import *
 
 
-class Negate(Operation):
-    def __init__(self, node, name="Negate"):
-        super().__init__([node], name)
-        self.node = node
-
-    def eval(self, input_dict):
-        return -self.node(input_dict)
-
-    @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt, grad=None):
-        if self.node == wrt:
-            return -grad
-        else:
-            return 0
-
-
 class Mul(Operation):
     def __init__(self, *elems, name="Mul"):
         if not elems:
@@ -32,10 +16,6 @@ class Mul(Operation):
             prod *= val
         return prod
 
-        # There are some operands that are just a number and here we broadcast them?
-        # arr = [np.array([val]) if isinstance(val, numbers.Number) else val for val in arr]
-        # return np.prod(arr, axis=0)
-
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad=None):
         wrt_count = self.children.count(wrt)
@@ -48,6 +28,22 @@ class Mul(Operation):
                        Pow(wrt_elem, wrt_count - 1),
                        Mul(*list_without_wrt))
         return 0
+
+
+class Negate(Operation):
+    def __init__(self, node, name="Negate"):
+        super().__init__([node], name)
+        self.node = node
+
+    def eval(self, input_dict):
+        return -self.node(input_dict)
+
+    @CompositeWrapper.from_graph_df
+    def graph_df(self, wrt, grad=None):
+        if self.node == wrt:
+            return -grad
+        else:
+            return 0
 
 
 class Recipr(Operation):
@@ -175,19 +171,14 @@ class Tanh(CompositeOperation):
         return 2 * Sigmoid(node) - 1
 
 
-class Sigmoid(Operation):
-    def __init__(self, node, name="Sigmoid"):
-        super().__init__([node], name)
-        self.node = self.children[0]
+class Sigmoid(CompositeOperation):
+    def __init__(self, node, name="Sigmoid", expand_when_graphed=True):
+        super().__init__([node], name=name, expand_when_graphed=expand_when_graphed)
+        self.out = self.init_graph()
 
-    def eval(self, input_dict):
-        return 1.0 / (1.0 + np.exp(-self.node(input_dict)))
-
-    @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt, grad=None):
-        if self.node == wrt:
-            return grad * self * (1 - self)
-        return 0
+    def graph(self):
+        node = self.children[0]
+        return 1 / (1 + Exp(-node))
 
 
 class ReLU(Operation):
