@@ -262,7 +262,7 @@ class TestRecursivelyComposite(CompositeOperation):
 
     def graph(self):
         node = self.children[0]
-        t = Variable(name="t")
+        t = Constant(7, name="t")
 
         if self.count:
             return node * (1 + TestRecursivelyComposite(node,

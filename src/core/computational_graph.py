@@ -20,7 +20,7 @@ class Node:
             self.name = os.path.join(name)
 
     def __str__(self):
-        return self.name
+        return "/".join(self.context + [self.name])
 
     def __add__(self, other):
         from core.ops import Add
@@ -367,9 +367,6 @@ class Grad(CompositeOperation):
 
     # TODO 2nd gradients problem!
     """
-    Current problem seems to be connected to the fact that many nodes can have the same name and it seems
-    to fuck up higher order gradient evaluation somehow!
-    Perhaps w.r.t. parameter should not be the name of the op, but the actual op?
     
     """
 
@@ -380,19 +377,15 @@ class Grad(CompositeOperation):
         try:
             next(node for node in nodes if node == self.wrt)
         except StopIteration:
-            # raise ValueError("Node with the name \"" + str(self.wrt) + "\" is not in the graph!")
-            return Constant(0, name=str(self.wrt) + "_zero")
+            raise ValueError("Node with the name \"" + str(self.wrt) + "\" is not in the graph!")
+            # return Constant(0, name=str(self.wrt) + "_zero")
 
         dct = collections.defaultdict(list)
         dct[out_node.id].append(self.initial_grad)
 
         for node in reversed(nodes):
-            app = "_grad_sum"
-            # app = ""
-            dct[node.id] = Add(*dct[node.id], name=node.name + app)
+            dct[node.id] = Add(*dct[node.id], name=node.name + "_grad_sum")
 
-            # The node might be composite, in which case we need the children from its .out variable
-            # Or maybe we actually don't, we let the node take care of that.
             for child in set(node.children):
                 dct[child.id].append(node.graph_df(child, grad=dct[node.id]))
 
