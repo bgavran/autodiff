@@ -17,7 +17,7 @@ class TestTwoArgScalarOperations(TestCase):
         self.var_w0 = Variable(name="w0")
         self.var_w1 = Variable(name="w1")
 
-        self.input_dict = {"w0": self.w0, "w1": self.w1}
+        self.input_dict = {self.var_w0: self.w0, self.var_w1: self.w1}
 
     def oneop_f(self, var_op, tf_op):
         tf_graph = tf_op(self.tf_w0, self.tf_w1)
@@ -36,7 +36,7 @@ class TestTwoArgScalarOperations(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(tf_graph, self.tf_w0)[0].eval()
 
-        grad_ops = Grad(graph, wrt="w0")
+        grad_ops = Grad(graph, wrt=self.var_w0)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
@@ -47,7 +47,7 @@ class TestTwoArgScalarOperations(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(tf_graph, self.tf_w1)[0].eval()
 
-        grad_ops = Grad(graph, wrt="w1")
+        grad_ops = Grad(graph, wrt=self.var_w1)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)

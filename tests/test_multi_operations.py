@@ -21,7 +21,7 @@ class TestOperation(TestCase):
         self.var_mul = self.var_x @ self.var_w
         self.var_nonlin = Sigmoid(self.var_mul)
 
-        self.input_dict = {"x": self.x, "w": self.w}
+        self.input_dict = {self.var_x: self.x, self.var_w: self.w}
 
     def test_f(self):
         graph = self.var_nonlin
@@ -37,7 +37,7 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_mul, self.tf_w)[0].eval()
 
-        grad_ops = Grad(graph, wrt="w")
+        grad_ops = Grad(graph, self.var_w)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads + self.w, tf_grads + self.w)
@@ -47,7 +47,7 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_mul, self.tf_x)[0].eval()
 
-        grad_ops = Grad(graph, wrt="x")
+        grad_ops = Grad(graph, self.var_x)
         my_grads = grad_ops.eval(self.input_dict)
 
         # This is still kind of a dirty hack?
@@ -58,7 +58,7 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_nonlin, self.tf_mul)[0].eval()
 
-        grad_ops = Grad(graph, wrt="MatMul")
+        grad_ops = Grad(graph, wrt=self.var_mul)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
@@ -68,7 +68,7 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_nonlin, self.tf_w)[0].eval()
 
-        grad_ops = Grad(graph, wrt="w")
+        grad_ops = Grad(graph, self.var_w)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
@@ -78,7 +78,7 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_nonlin, self.tf_x)[0].eval()
 
-        grad_ops = Grad(graph, wrt="x")
+        grad_ops = Grad(graph, self.var_x)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
@@ -89,7 +89,7 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(tf_graph, self.tf_x)[0].eval()
 
-        grad_ops = Grad(graph, wrt="x")
+        grad_ops = Grad(graph, self.var_x)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
@@ -100,7 +100,7 @@ class TestOperation(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(tf_graph, self.tf_x)[0].eval()
 
-        grad_ops = Grad(graph, wrt="x")
+        grad_ops = Grad(graph, wrt=self.var_x)
         my_grads = grad_ops.eval(self.input_dict)
 
         # TODO this might not be such a good idea?

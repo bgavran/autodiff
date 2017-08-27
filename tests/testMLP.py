@@ -33,7 +33,10 @@ class TestMLP(TestCase):
         self.var_h = Sigmoid(self.var_x @ self.var_w1)
         self.var_o = Sigmoid(self.var_h @ self.var_w2)
 
-        self.input_dict = {"x": self.x, "w1": self.w1, "w2": self.w2}
+        self.input_dict = {self.var_x: self.x,
+                           self.var_w1: self.w1,
+                           self.var_w2: self.w2}
+
         self.graph = self.var_o
         self.tf_graph = self.tf_o
 
@@ -49,7 +52,7 @@ class TestMLP(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_graph, self.tf_x)[0].eval()
 
-        grad_ops = Grad(self.graph, wrt="x")
+        grad_ops = Grad(self.graph, self.var_x)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
@@ -58,7 +61,7 @@ class TestMLP(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_graph, self.tf_w1)[0].eval()
 
-        grad_ops = Grad(self.graph, wrt="w1")
+        grad_ops = Grad(self.graph, self.var_w1)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
@@ -67,7 +70,7 @@ class TestMLP(TestCase):
         with tf.Session():
             tf_grads = tf.gradients(self.tf_graph, self.tf_w2)[0].eval()
 
-        grad_ops = Grad(self.graph, wrt="w2")
+        grad_ops = Grad(self.graph, self.var_w2)
         my_grads = grad_ops.eval(self.input_dict)
 
         np.testing.assert_allclose(my_grads, tf_grads)
