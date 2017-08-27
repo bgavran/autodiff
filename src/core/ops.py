@@ -1,21 +1,5 @@
 import re
-from functools import reduce
 from core.computational_graph import *
-
-
-class Add(Operation):
-    def __init__(self, *elems, name="Add"):
-        super().__init__(list(elems), name)
-
-    def eval(self, input_dict):
-        arr = [elem(input_dict) for elem in self.children]
-        # Using python sum instead of np.sum because python converts types correctly
-        return sum(arr)
-
-    @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        wrt_count = [child.name for child in self.children].count(wrt)
-        return grad * Constant(wrt_count)
 
 
 class Negate(Operation):
@@ -27,8 +11,8 @@ class Negate(Operation):
         return -self.node(input_dict)
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        if self.node.name == wrt:
+    def graph_df(self, wrt, grad=None):
+        if self.node == wrt:
             return -grad
         else:
             return 0
@@ -53,13 +37,14 @@ class Mul(Operation):
         # return np.prod(arr, axis=0)
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        wrt_count = [child.name for child in self.children].count(wrt)
+    def graph_df(self, wrt, grad=None):
+        wrt_count = self.children.count(wrt)
         if wrt_count > 0:
-            list_without_wrt = [child for child in self.children if child.name is not wrt]
-            wrt_elem = next(child for child in self.children if child.name is wrt)
+            list_without_wrt = [child for child in self.children if child is not wrt]
+            wrt_elem = next(child for child in self.children if child is wrt)
+            cnt = Constant(wrt_count, name=str(wrt_count) + "-Count")
             return Mul(grad,
-                       wrt_count,
+                       cnt,
                        Pow(wrt_elem, wrt_count - 1),
                        Mul(*list_without_wrt))
         return 0
@@ -74,8 +59,8 @@ class Recipr(Operation):
         return 1 / (self.node(input_dict) + Operation.epsilon)
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        if self.node.name == wrt:
+    def graph_df(self, wrt, grad=None):
+        if self.node == wrt:
             return grad * -Recipr(self.node * self.node)
         return 0
 
@@ -88,8 +73,8 @@ class Transpose(Operation):
     def eval(self, input_dict):
         return np.transpose(self.node(input_dict))
 
-    def graph_df(self, wrt="", grad=None):
-        if self.node.name == wrt:
+    def graph_df(self, wrt, grad=None):
+        if self.node == wrt:
             return Transpose(grad)
         return 0
 
@@ -133,7 +118,6 @@ class EinSum(Operation):
                 assert len(shape) == len(letters)
                 for letter, dim in zip(letters, shape):
                     letter_to_dim[letter] = dim
-                    # array_operands.append([val.shape, self.opnames[i]])
 
         for i, val in enumerate(arr):
             if isinstance(val, numbers.Number):
@@ -144,7 +128,7 @@ class EinSum(Operation):
         return np.einsum(self.op_str, *arr)
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
+    def graph_df(self, wrt, grad=None):
         """
         Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
         df w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
@@ -156,7 +140,7 @@ class EinSum(Operation):
         :return:
         """
         for i, operand in enumerate(self.operands):
-            if operand.name == wrt:
+            if operand == wrt:
                 loc = i
                 break
         try:
@@ -173,7 +157,7 @@ class EinSum(Operation):
             return EinSum(opnames, *operands_with_grad[:-1])
 
         except NameError:
-            print("wrt == ", wrt)
+            print("wrt == ", wrt.name)
             return 0
 
     @staticmethod
@@ -200,8 +184,8 @@ class Sigmoid(Operation):
         return 1.0 / (1.0 + np.exp(-self.node(input_dict)))
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        if self.node.name == wrt:
+    def graph_df(self, wrt, grad=None):
+        if self.node == wrt:
             return grad * self * (1 - self)
         return 0
 
@@ -215,7 +199,7 @@ class ReLU(Operation):
         return self.bigger_than_zero(input_dict) * self.node(input_dict)
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
+    def graph_df(self, wrt, grad=None):
         # TODO higher order gradient doesn't seem to be correct?
         return self * Recipr(self)
 
@@ -233,12 +217,12 @@ class Pow(Operation):
         return np.power(self.first(input_dict), self.second(input_dict))
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        if self.first.name == self.second.name == wrt:
+    def graph_df(self, wrt, grad=None):
+        if self.first == self.second == wrt:
             return self * (Log(self.first) + 1)
-        elif self.first.name == wrt:
+        elif self.first == wrt:
             return self.second * Pow(self.first, self.second - 1)
-        elif self.second.name == wrt:
+        elif self.second == wrt:
             return Log(self.first) * self
         return 0
 
@@ -253,8 +237,8 @@ class Log(Operation):
         return np.log(self.node(input_dict))
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        if self.node.name == wrt:
+    def graph_df(self, wrt, grad=None):
+        if self.node == wrt:
             return grad * Recipr(self.node)
         return 0
 
@@ -298,7 +282,7 @@ class Exp(Operation):
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad=None):
-        if self.node.name == wrt:
+        if self.node == wrt:
             return grad * self
         return 0
 
@@ -314,37 +298,3 @@ class SquaredDifference(CompositeOperation):
 
         diff = first - second
         return diff * diff
-
-
-class Grad(CompositeOperation):
-    def __init__(self, node, wrt, initial_grad=None, name="Grad", expand_when_graphed=True):
-        super().__init__([node],
-                         name=name + " w.r.t. " + str(wrt),
-                         expand_when_graphed=expand_when_graphed)
-        self.wrt = wrt
-        # c = np.array([1])
-        c = 1
-        self.initial_grad = Constant(c, name=node.name + "_grad") if initial_grad is None else initial_grad
-        self.out = self.init_graph()
-
-    def graph(self):
-        out_node = self.children[0].get_node()
-        nodes = out_node.topo_sort()
-
-        try:
-            wrt_node = next(node for node in nodes if node.name == self.wrt)
-        except StopIteration:
-            raise ValueError("Node with the name \"" + str(self.wrt) + "\" is not in the graph!")
-
-        dct = collections.defaultdict(list)
-        dct[out_node.id].append(self.initial_grad)
-
-        for node in reversed(nodes):
-            dct[node.id] = Add(*dct[node.id], name=node.name + "_grad_sum")
-
-            # Don't evaluate the same child twice!
-            # The node might be composite, in which case we need the children from its .out variable
-            for child in set(node.get_node().children):
-                dct[child.id].append(node.graph_df(child.name, grad=dct[node.id]))
-
-        return dct[wrt_node.id]

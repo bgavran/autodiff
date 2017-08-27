@@ -67,7 +67,7 @@ class Node:
 
     def get_color(self):
         if isinstance(self, CompositeOperation):
-            return "goldenrod3"
+            return "aquamarine3"
         if isinstance(self, Variable):
             return "indianred1"
         elif isinstance(self, Constant):
@@ -97,8 +97,6 @@ class Node:
     def _constant_wrapper(init_function):
         """
         Decorator for the Node class which wraps any normal number into a Constant
-        :param init_function:
-        :return:
         """
 
         def wrap_all_children(self, children, name):
@@ -113,10 +111,7 @@ class Node:
     @staticmethod
     @contextmanager
     def add_context(ctx):
-        assert isinstance(ctx, list)
-        for item in ctx:
-            if item not in Node.context:
-                Node.context.extend([item])
+        Node.context.append(ctx)
         try:
             yield
         finally:
@@ -227,12 +222,12 @@ class Variable(Operation):
 
     def eval(self, input_dict):
         try:
-            return input_dict[self.name]
+            return input_dict[self]
         except KeyError:
-            raise KeyError("Must input value for variable", self.name)
+            raise KeyError("Must input value for variable: " + str(self))
 
-    def graph_df(self, wrt="", grad=None):
-        if self.name == wrt:
+    def graph_df(self, wrt, grad=None):
+        if self == wrt:
             return grad
         return 0
 
@@ -245,7 +240,7 @@ class Identity(Operation):
     def eval(self, input_dict):
         return self.node.eval(input_dict)
 
-    def graph_df(self, wrt="", grad=None):
+    def graph_df(self, wrt, grad=None):
         return self.node.graph_df(wrt, grad)
 
 
@@ -266,14 +261,16 @@ class CompositeWrapper:
 
     @staticmethod
     def from_graph_df(fn):
-        def wrap_in_composite(instance, wrt, grad=None, expand_when_graphed=False):
+        def wrap_in_composite(instance, wrt, grad=None, expand_when_graphed=True):
             # TODO what are the children of this CompOp?
             """
             Here the w.r.t. parameter is not known so the actual children also can't be known...?
 
             """
             name = "Gradient graph of " + instance.name + " "
-            children = [grad] + instance.children
+            # children = [grad, instance]
+            children = [grad] + list(set(instance.children))
+
             op = CompositeOperation(children,
                                     name=name,
                                     expand_when_graphed=expand_when_graphed)
@@ -298,19 +295,15 @@ class CompositeOperation(Operation):
         self.out = None
 
     def init_graph(self):
-        new_ctx = self.name + str(self.id)
-        ctx = self.context + [new_ctx]
+        ctx = self.name + " " + str(self.id)
         with Node.add_context(ctx):
             out = self.graph()
         assert out is not None
 
-        if isinstance(out, CompositeOperation):
-            return out.get_node()
-        else:
-            return out
+        return out
 
     def get_node(self):
-        return self.out
+        return self.out.get_node()
 
     def get_node_for_graph(self):
         if self.expand_when_graphed:
@@ -327,16 +320,17 @@ class CompositeOperation(Operation):
         else:
             Operation.add_node_subgraph_to_plot_graph(self, digraph)
 
-    def __iter__(self):
-        yield self
-        yield from self.out
-
     def eval(self, input_dict):
-        return self.out.eval(input_dict)
+        return self.get_node().eval(input_dict)
 
     @CompositeWrapper.from_graph_df
-    def graph_df(self, wrt="", grad=None):
-        return self.out.graph_df(wrt, grad)
+    def graph_df(self, wrt, grad=None):
+        gr = Grad(self.get_node(),
+                  wrt=wrt,
+                  initial_grad=grad,
+                  name=self.name)
+
+        return gr
 
     def graph(self):
         """
@@ -345,3 +339,61 @@ class CompositeOperation(Operation):
         :return:
         """
         raise NotImplementedError()
+
+
+class Add(Operation):
+    def __init__(self, *elems, name="Add"):
+        super().__init__(list(elems), name)
+
+    def eval(self, input_dict):
+        arr = [elem(input_dict) for elem in self.children]
+        # Using python sum instead of np.sum because python converts types correctly
+        return sum(arr)
+
+    @CompositeWrapper.from_graph_df
+    def graph_df(self, wrt, grad=None):
+        wrt_count = self.children.count(wrt)
+        return grad * Constant(wrt_count)
+
+
+class Grad(CompositeOperation):
+    def __init__(self, node, wrt, initial_grad=None, name="", expand_when_graphed=True):
+        super().__init__([node],
+                         name=name + " grad w.r.t. " + str(wrt),
+                         expand_when_graphed=expand_when_graphed)
+        self.wrt = wrt
+        self.initial_grad = Constant(1, name=node.name + "_grad") if initial_grad is None else initial_grad
+        self.out = self.init_graph()
+
+    # TODO 2nd gradients problem!
+    """
+    Current problem seems to be connected to the fact that many nodes can have the same name and it seems
+    to fuck up higher order gradient evaluation somehow!
+    Perhaps w.r.t. parameter should not be the name of the op, but the actual op?
+    
+    """
+
+    def graph(self):
+        out_node = self.children[0]
+        nodes = out_node.topo_sort()
+
+        try:
+            next(node for node in nodes if node == self.wrt)
+        except StopIteration:
+            # raise ValueError("Node with the name \"" + str(self.wrt) + "\" is not in the graph!")
+            return Constant(0, name=str(self.wrt) + "_zero")
+
+        dct = collections.defaultdict(list)
+        dct[out_node.id].append(self.initial_grad)
+
+        for node in reversed(nodes):
+            app = "_grad_sum"
+            # app = ""
+            dct[node.id] = Add(*dct[node.id], name=node.name + app)
+
+            # The node might be composite, in which case we need the children from its .out variable
+            # Or maybe we actually don't, we let the node take care of that.
+            for child in set(node.children):
+                dct[child.id].append(node.graph_df(child, grad=dct[node.id]))
+
+        return dct[self.wrt.id]
