@@ -266,8 +266,11 @@ class CompositeWrapper:
             """
             Here the w.r.t. parameter is not known so the actual children also can't be known...?
 
+            Why should there be any children?
+
             """
             name = "Gradient graph of " + instance.name + " "
+            # children = []
             # children = [grad, instance]
             children = [grad] + list(set(instance.children))
 
@@ -381,8 +384,8 @@ class Grad(CompositeOperation):
         nodes = out_node.topo_sort()
 
         if self.wrt not in nodes:
-            raise ValueError("Node with the name \"" + str(self.wrt) + "\" is not in the graph!")
-            # return Constant(0, name=str(self.wrt) + "_zero")
+            # raise ValueError("Node with the name \"" + str(self.wrt) + "\" is not in the graph!")
+            return Constant(0, name=str(self.wrt) + "_zero")
 
         dct = collections.defaultdict(list)
         dct[out_node.id].append(self.initial_grad)

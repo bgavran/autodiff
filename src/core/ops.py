@@ -168,7 +168,7 @@ class Tanh(CompositeOperation):
 
     def graph(self):
         node = self.children[0]
-        return 2 * Sigmoid(node) - 1
+        return 2 * Sigmoid(2*node) - 1
 
 
 class Sigmoid(CompositeOperation):
@@ -225,7 +225,7 @@ class Log(Operation):
         self.node = self.children[0]
 
     def eval(self, input_dict):
-        return np.log(self.node(input_dict))
+        return np.log(self.node(input_dict) + Operation.epsilon)
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad=None):
