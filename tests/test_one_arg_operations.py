@@ -39,8 +39,9 @@ class TestOneArgOperations(TestCase):
         graph = var_op(self.var_w0)
         with tf.Session():
             for _ in range(n):
-                tf_graph = tf.gradients(tf_graph, self.tf_w0)[0]
                 graph = Grad(graph, wrt=self.var_w0)
+                if tf_graph is not None:
+                    tf_graph = tf.gradients(tf_graph, self.tf_w0)[0]
             if tf_graph is not None:
                 tf_grads = tf_graph.eval()
             else:
@@ -65,6 +66,8 @@ class TestOneArgOperations(TestCase):
             self.oneop_df_n_times(var_op, tf_op, n=2)
         with self.subTest("3df"):
             self.oneop_df_n_times(var_op, tf_op, n=3)
+        with self.subTest("4df"):
+            self.oneop_df_n_times(var_op, tf_op, n=4)
 
     def test_sigmoid(self):
         self.oneop(Sigmoid, tf.nn.sigmoid)

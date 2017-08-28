@@ -168,11 +168,11 @@ class Tanh(CompositeOperation):
 
     def graph(self):
         node = self.children[0]
-        return 2 * Sigmoid(2*node) - 1
+        return 2 * Sigmoid(2 * node) - 1
 
 
 class Sigmoid(CompositeOperation):
-    def __init__(self, node, name="Sigmoid", expand_when_graphed=True):
+    def __init__(self, node, name="Sigmoid", expand_when_graphed=False):
         super().__init__([node], name=name, expand_when_graphed=expand_when_graphed)
         self.out = self.init_graph()
 
@@ -220,7 +220,6 @@ class Pow(Operation):
 
 class Log(Operation):
     def __init__(self, node, name="Log"):
-        # Natural log
         super().__init__([node], name)
         self.node = self.children[0]
 
@@ -232,17 +231,6 @@ class Log(Operation):
         if self.node == wrt:
             return grad * Recipr(self.node)
         return 0
-
-
-class CrossEntropy(CompositeOperation):
-    def __init__(self, true, predicted, name="CrossEntropy"):
-        super().__init__([true, predicted], name)
-
-    def graph(self):
-        true = self.children[0]
-        predicted = self.children[1]
-
-        return true * Log(Recipr(predicted)) + (1 - true) * Log(Recipr(1 - predicted))
 
 
 class TestRecursivelyComposite(CompositeOperation):

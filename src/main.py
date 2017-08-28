@@ -2,21 +2,13 @@ from core.ops import *
 from utils import *
 import matplotlib.pyplot as plt
 
+np.random.seed(1337)
+
 x1 = Variable(name="x1")
 w1 = Variable(name="w1")
-
-# diff = x1 - w1
-# graph = diff * diff
-graph = Recipr(x1)
-# graph = Tanh(x1, expand_when_graphed=True)
-
-# graph = SquaredDifference(x1, w1, expand_when_graphed=True)
-# graph = SquaredDifference(graph, w1)
-# graph = TestRecursivelyComposite(x1, count=2, expand_when_graphed=True) * 2
-
-# graph = Sigmoid(graph)
+graph = Tanh(x1)
 graph = Grad(graph, wrt=x1, expand_when_graphed=True)
-# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+graph = Grad(graph, wrt=x1, expand_when_graphed=True)
 
 plot_comp_graph(graph, view=False)
 inpd = {x1: 10, w1: 15}

@@ -233,16 +233,15 @@ class CompositeWrapper:
         def wrap_in_composite(instance, wrt, grad=None, expand_when_graphed=False):
             # TODO what are the children of this CompOp?
             """
-            Here the w.r.t. parameter is not known so the actual children also can't be known...?
-
-            Why should there be any children?
+            Should the instance be a child?
+            Because we could then go into an infinite loop by trying to diff the instance again?
 
             """
             name = "Gradient graph of " + instance.name + " "
             # children = [grad]
             # children = [grad, instance]
-            # children = [grad] + list(set(instance.children))
-            children = [grad] + [instance] + list(set(instance.children))
+            children = [grad] + list(set(instance.children))
+            # children = [grad] + [instance] + list(set(instance.children))
 
             op = CompositeOperation(children,
                                     name=name,
@@ -301,7 +300,7 @@ class CompositeOperation(Operation):
     def eval(self, input_dict):
         return self.out.eval(input_dict)
 
-    # @CompositeWrapper.from_graph_df
+    @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad=None):
         gr = Grad(self.out,
                   wrt=wrt,
@@ -350,6 +349,11 @@ Problem is that CompositeOperation graph() function depends on the children pass
 initialization time.
 
 But what exactly is the problem with passing all children of an Op to the CompositeOperation graph_df?
+
+--
+Well, if we need to pass all the children, we might as well pass the instance as well, since sometimes the
+grad depends on the fn itself (Exp() for example)
+But then we get into an infinite loop?
 
 """
 
