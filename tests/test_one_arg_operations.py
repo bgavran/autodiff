@@ -46,13 +46,14 @@ class TestOneArgOperations(TestCase):
         # TODO this might not be such a good idea?
         # Is there a way to dynamically get the shape of the gradient?
         # Here I'm just relying on broadcasting to work
-        my_val = my_grads + self.w0
-        tf_val = tf_grads + self.w0
 
         print("---------- df ----------")
-        print("My_val:", my_val)
-        print("Tf_val:", tf_val)
+        print("My_val:", my_grads)
+        print("Tf_val:", tf_grads)
         print("------------------------")
+
+        my_val = my_grads + self.w0
+        tf_val = tf_grads + self.w0
         np.testing.assert_allclose(my_val, tf_val)
 
     def oneop_2df_wrt_w0(self, var_op, tf_op):
@@ -70,12 +71,12 @@ class TestOneArgOperations(TestCase):
         grad_ops1 = Grad(grad_ops0, wrt=self.var_w0)
         my_grads = grad_ops1.eval(self.input_dict)
 
-        my_val = my_grads + self.w0
-        tf_val = tf_grads1 + self.w0
         print("---------- 2df ----------")
         print("My_val:", my_grads)
         print("Tf_val:", tf_grads1)
         print("-------------------------")
+        my_val = my_grads + self.w0
+        tf_val = tf_grads1 + self.w0
         np.testing.assert_allclose(my_val, tf_val)
 
     def oneop(self, var_op, tf_op):

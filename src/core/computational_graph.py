@@ -65,33 +65,6 @@ class Node:
         from core.ops import Recipr
         return Recipr(self).__mul__(other)
 
-    def get_color(self):
-        if isinstance(self, CompositeOperation):
-            return "aquamarine3"
-        if isinstance(self, Variable):
-            return "indianred1"
-        elif isinstance(self, Constant):
-            return "gray"
-        else:
-            return "lightblue"
-
-    def get_shape(self):
-        if isinstance(self, CompositeOperation):
-            return "doubleoctagon"
-        if isinstance(self, Variable) or isinstance(self, Constant):
-            return "box"
-        else:
-            return "oval"
-
-    def get_edge_style(self):
-        from core.ops import Grad
-        if isinstance(self, Grad):
-            return "dashed"
-        else:
-            return "filled"
-
-    def get_edge_arrow(self):
-        return "normal"
 
     @staticmethod
     def _constant_wrapper(init_function):
@@ -116,9 +89,6 @@ class Node:
             yield
         finally:
             Node.context.pop()
-
-    def get_node(self):
-        return self
 
     def get_node_for_graph(self):
         return self
@@ -261,7 +231,7 @@ class CompositeWrapper:
 
     @staticmethod
     def from_graph_df(fn):
-        def wrap_in_composite(instance, wrt, grad=None, expand_when_graphed=True):
+        def wrap_in_composite(instance, wrt, grad=None, expand_when_graphed=False):
             # TODO what are the children of this CompOp?
             """
             Here the w.r.t. parameter is not known so the actual children also can't be known...?
@@ -295,7 +265,7 @@ class CompositeOperation(Operation):
         """
         super().__init__(children, name)
         self.expand_when_graphed = expand_when_graphed
-        self.out = None
+        self._out = None
 
     def init_graph(self):
         ctx = self.name + " " + str(self.id)
@@ -305,8 +275,16 @@ class CompositeOperation(Operation):
 
         return out
 
-    def get_node(self):
-        return self.out.get_node()
+    @property
+    def out(self):
+        return self._out
+
+    @out.setter
+    def out(self, val):
+        if self._out is None:
+            self._out = val
+        else:
+            raise ValueError("_out variable for instance " + self.name + " is already set!")
 
     def get_node_for_graph(self):
         if self.expand_when_graphed:
@@ -321,9 +299,9 @@ class CompositeOperation(Operation):
             Operation.add_node_subgraph_to_plot_graph(self, digraph)
 
     def eval(self, input_dict):
-        return self.get_node().eval(input_dict)
+        return self.out.eval(input_dict)
 
-    @CompositeWrapper.from_graph_df
+    # @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad=None):
         gr = Grad(self.out,
                   wrt=wrt,
@@ -343,6 +321,8 @@ class CompositeOperation(Operation):
 
 class Add(Operation):
     def __init__(self, *elems, name="Add"):
+        if not elems:
+            name = "0-Add"
         super().__init__(list(elems), name)
 
     def eval(self, input_dict):
@@ -356,6 +336,24 @@ class Add(Operation):
         return grad * Constant(wrt_count)
 
 
+# TODO 2nd gradients problem!
+"""
+
+Graph_df became a CompositeOperation now. 
+CompositeOperation needs to have its children known on the time of creation, 
+but an arbitrary graph_df can have branching inside it and whatnot.
+
+It means that it's not possible to know graph_df's children at creation time.
+Is CompositeOperation the right pattern here? 
+
+Problem is that CompositeOperation graph() function depends on the children passed to it at 
+initialization time.
+
+But what exactly is the problem with passing all children of an Op to the CompositeOperation graph_df?
+
+"""
+
+
 class Grad(CompositeOperation):
     def __init__(self, node, wrt, initial_grad=None, name="", expand_when_graphed=True):
         super().__init__([node],
@@ -364,20 +362,6 @@ class Grad(CompositeOperation):
         self.wrt = wrt
         self.initial_grad = Constant(1, name=node.name + "_grad") if initial_grad is None else initial_grad
         self.out = self.init_graph()
-
-    # TODO 2nd gradients problem!
-    """
-    Create a unit test for Mul, with many inputs?
-    And also a bunch of unit tests for higher order gradients?
-    
-    Something related to taking gradients of CompositeGrad who has children that don't exist anymore?
-    The problem is that Grad doesn't have to actually be connected to its children.
-    And then when we take Grad of Grad we're trying to get df w.r.t. it's children but it turns out to be 
-    zero.
-    Which is maybe okay?
-    
-    
-    """
 
     def graph(self):
         out_node = self.children[0]

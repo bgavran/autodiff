@@ -1,4 +1,5 @@
 from graphviz import Digraph
+from core.ops import *
 
 
 class MyDigraph(Digraph):
@@ -25,8 +26,8 @@ class MyDigraph(Digraph):
 
     def add_node(self, node):
         attributes = {"label": node.name,
-                      "color": node.get_color(),
-                      "shape": node.get_shape()}
+                      "color": MyDigraph.get_color(node),
+                      "shape": MyDigraph.get_shape(node)}
 
         self.node(str(node.id), **attributes)
 
@@ -35,7 +36,39 @@ class MyDigraph(Digraph):
         parent = parent.get_node_for_graph()
         self.edge(str(child.id),
                   str(parent.id),
-                  **{"style": parent.get_edge_style()})
+                  **{"style": MyDigraph.get_edge_style(parent)})
+
+    @staticmethod
+    def get_color(node):
+        if isinstance(node, CompositeOperation):
+            return "aquamarine3"
+        if isinstance(node, Variable):
+            return "indianred1"
+        elif isinstance(node, Constant):
+            return "gray"
+        else:
+            return "lightblue"
+
+    @staticmethod
+    def get_shape(node):
+        if isinstance(node, CompositeOperation):
+            return "doubleoctagon"
+        if isinstance(node, Variable) or isinstance(node, Constant):
+            return "box"
+        else:
+            return "oval"
+
+    @staticmethod
+    def get_edge_style(node):
+        from core.ops import Grad
+        if isinstance(node, Grad):
+            return "dashed"
+        else:
+            return "filled"
+
+    @staticmethod
+    def get_edge_arrow(node):
+        return "normal"
 
 
 class MySubgraphContext:
