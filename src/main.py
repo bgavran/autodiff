@@ -7,7 +7,7 @@ w1 = Variable(name="w1")
 
 # diff = x1 - w1
 # graph = diff * diff
-graph = Exp(x1)
+graph = Recipr(x1)
 # graph = Tanh(x1, expand_when_graphed=True)
 
 # graph = SquaredDifference(x1, w1, expand_when_graphed=True)
@@ -19,7 +19,7 @@ graph = Grad(graph, wrt=x1, expand_when_graphed=True)
 # graph = Grad(graph, wrt=x1, expand_when_graphed=True)
 
 plot_comp_graph(graph, view=False)
-inpd = {x1: 1, w1: 15}
+inpd = {x1: 10, w1: 15}
 res = graph(inpd)
 print(res)
 

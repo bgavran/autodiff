@@ -65,7 +65,6 @@ class Node:
         from core.ops import Recipr
         return Recipr(self).__mul__(other)
 
-
     @staticmethod
     def _constant_wrapper(init_function):
         """
@@ -240,9 +239,10 @@ class CompositeWrapper:
 
             """
             name = "Gradient graph of " + instance.name + " "
-            # children = []
+            # children = [grad]
             # children = [grad, instance]
-            children = [grad] + list(set(instance.children))
+            # children = [grad] + list(set(instance.children))
+            children = [grad] + [instance] + list(set(instance.children))
 
             op = CompositeOperation(children,
                                     name=name,
