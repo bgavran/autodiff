@@ -72,8 +72,8 @@ class TestOneArgOperations(TestCase):
         # with self.subTest("4df"):
         #     self.oneop_df_n_times(var_op, tf_op, n=4)
 
-    # def test_sigmoid(self):
-    #     self.oneop(Sigmoid, tf.nn.sigmoid)
+    def test_sigmoid(self):
+        self.oneop(Sigmoid, tf.nn.sigmoid)
 
     def test_relu(self):
         self.oneop(ReLU, tf.nn.relu)

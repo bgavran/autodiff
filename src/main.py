@@ -6,18 +6,25 @@ np.random.seed(1337)
 x1 = Variable(name="x1")
 w1 = Variable(name="w1")
 
+"""
+Plan:
+* Idea to simplify comp. graphs might not be good, need to analyze why it's slow first!
+* Profiling
+* Grad buffer a good idea?
+* 
+"""
 # graph = SquaredDifference(x1, x1)
-graph = ReLU(x1)
+graph = Exp(x1)
 graph = Grad(graph, wrt=x1, expand_when_graphed=True)
-# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
-# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
-# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+graph = Grad(graph, wrt=x1, expand_when_graphed=True)
 
 plot_comp_graph(graph, view=False)
-inpd = {x1: 10, w1: 6}
-# # inpd = {x1: np.arange(-5, 5, 0.1), w1: 15}
-res = graph(inpd)
-print(res)
+# inpd = {x1: 10, w1: 6}
+# # # inpd = {x1: np.arange(-5, 5, 0.1), w1: 15}
+# res = graph(inpd)
+# print(res)
 
 # x1 = Variable(name="x1")
 #

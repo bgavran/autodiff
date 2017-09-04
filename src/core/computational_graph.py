@@ -104,8 +104,10 @@ class Operation(Node):
         for child in set(self.children):
             child.parents.add(self)
         self.parents = set()
+
         self.visited_topo_sort = False
         self.temporary_mark = False
+        self.in_graph = False
 
     def apply_on_self_and_children(self, fn, *args, **kwargs):
         fn(self, *args, **kwargs)
@@ -171,7 +173,15 @@ class Operation(Node):
         return set(ll)
 
     def reverse_topo_sort(self):
-        nodes_in_graph = list(self)  # list of nodes this node depends on (we ignore other parents)
+        """
+        Can this be done more efficiently?
+
+        """
+
+        def mark_node_in_graph(node):
+            node.in_graph = True
+
+        self.apply_on_self_and_children(mark_node_in_graph)  # mark just the dependencies of this node
         ll = []
 
         def visit(node):
@@ -180,21 +190,22 @@ class Operation(Node):
             assert node.temporary_mark is False  # must not be a cyclic graph
             node.temporary_mark = True
             for parent in node.parents:
-                if parent in nodes_in_graph:  # slow?
+                if parent.in_graph:
                     visit(parent)
 
             node.visited_topo_sort = True
             ll.append(node)
 
-        for node in nodes_in_graph:
+        for node in self:  # this recursively yields all children
             if not node.visited_topo_sort:
                 visit(node)
 
         def fn(instance):
             instance.visited_topo_sort = False
             instance.temporary_mark = False
+            instance.in_graph = False
 
-        self.apply_on_self_and_children(fn)
+        self.apply_on_self_and_children(fn)  # set back the flags to False
 
         return ll
 
