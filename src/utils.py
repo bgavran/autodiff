@@ -31,6 +31,19 @@ class MyDigraph(Digraph):
 
         self.node(str(node.id), **attributes)
 
+    def add_node_with_context(self, node, ctx):
+        """
+        Add just the node (not the connections, not the children) to the respective subgraph
+        """
+        if len(ctx):
+            with self.subgraph(name="cluster" + str(ctx[0])) as subgraph:
+                subgraph.attr(color="blue")
+                subgraph.attr(label=ctx[0])
+
+                subgraph.add_node_with_context(node, ctx[1:])
+        else:
+            self.add_node(node)
+
     def add_edge(self, child, parent):
         child = child.get_node_for_graph()
         parent = parent.get_node_for_graph()
@@ -90,8 +103,9 @@ class MySubgraphContext:
             self.graph.parent = self.parent
 
 
-def plot_comp_graph(root_node, view=False):
-    graph = MyDigraph("Computational graph", filename="comp_graph", engine="dot")
+def plot_comp_graph(root_node, view=False, name="comp_graph"):
+    print("Plotting...")
+    graph = MyDigraph("Computational graph", filename=name, engine="dot")
     graph.attr(size="6,6")
     graph.node_attr.update(color='lightblue2', style="filled")
     graph.graph_attr.update(rankdir="BT")

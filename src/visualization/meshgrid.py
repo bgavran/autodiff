@@ -1,6 +1,22 @@
 import numpy as np
 from tqdm import tqdm
 
+"""
+
+# Old visualization code:
+
+meshgrids = GraphMeshgrid([x, x], [w, w1], y, test2)
+grad = meshgrids.apply_to_function(graph.accumulate_all_gradients_in_list, meshgrids.w_names)
+val = meshgrids.apply_to_function(graph.f)
+
+p = Plotter()
+p.plot_stream(meshgrids.w, grad, meshgrids.w_names)
+p.plot_value(meshgrids.w[0], meshgrids.w[1], val, meshgrids.w_names)
+plt.show(block=True)
+
+
+"""
+
 
 class GraphMeshgrid:
     epsilon = 0

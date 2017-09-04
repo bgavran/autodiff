@@ -47,7 +47,9 @@ This is how every tutorial presents it, this is how I learned it and this is pro
 
 However, the [Synthetic Gradients paper](https://arxiv.org/abs/1608.05343) seems to challenge that idea.
 
-What they do is they break the feedback loop of updating the parameters into several smaller feedback loops, some of which __don't have any Gradient operations in them!__ This obviously means that the core principles outlined above aren't really *core* principles and that there's something else going on.
+What they did is they broke the feedback loop of updating the parameters into several smaller feedback loops, some of which __don't have any Gradient operations in them!__ And it still works! 
+
+This obviously means that the core principles outlined above aren't really *core* principles and that there's something else going on.
 
 #### What it means to _use an optimizer_ while training neural networks?
 

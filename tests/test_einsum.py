@@ -55,7 +55,7 @@ class TestEinSum(TestCase):
         #         tf_grads = tf.gradients(tf_graph, self.tf_w2)[0].eval()
         #     print(tf_grads)
         #
-        #     graph.compute_derivatives(self.input_dict)
+        #     graph.compute_derivatives(self.my_input_dict)
         #     my_grads = graph.accumulate_all_gradients(wrt="w2")
         #
         #     print(my_grads)
