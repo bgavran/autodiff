@@ -49,7 +49,7 @@ This is how every backpropgation tutorial presents it, this is how I learned it 
 However, the [Synthetic Gradients paper](https://arxiv.org/abs/1608.05343) seems to challenge that idea.
 
 What they did is they broke the feedback loop of updating the parameters into several smaller feedback loops, some of which __don't have any Gradient operations in them!__ And it still works! 
-Obivously, the Gradient information *is* used during the training, but it seems that a functional, efficient update can be performed with just an approximation of the Gradient.
+Obivously, the gradient information *is* used during the training, but it seems that a functional, efficient update can be performed with just an approximation of the Gradient.
 
 This means that the core principles outlined above aren't really *core* principles and that there's something else going on.
 
