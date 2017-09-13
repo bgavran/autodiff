@@ -13,12 +13,12 @@ Plan:
 * Grad buffer a good idea?
 * 
 """
-# graph = SquaredDifference(x1, x1)
-graph = Exp(x1)
-graph = Grad(graph, wrt=x1, expand_when_graphed=True)
-graph = Grad(graph, wrt=x1, expand_when_graphed=True)
-graph = Grad(graph, wrt=x1, expand_when_graphed=True)
-graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+graph = Sigmoid(x1, expand_when_graphed=True)
+graph = graph.graph_df(wrt=x1, grad=None)
+# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
+# graph = Grad(graph, wrt=x1, expand_when_graphed=True)
 
 plot_comp_graph(graph, view=False)
 # inpd = {x1: 10, w1: 6}

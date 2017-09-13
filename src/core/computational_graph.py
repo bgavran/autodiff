@@ -137,10 +137,20 @@ class Operation(Node):
     Sometimes there's a problem with abstarction with Grad (we don't want to display stuff inside a CompOp
     whose Grad we're taking if its not set to be expanded while graphed).
     
+    Current problems: too slow. Incorrent on some composite ops? 
     ---
-    Other problem:
-    Too slow?
+    graph_df is wrapped with a composite operation? Should graph_df be a composite operation?
+    That's why CompOp should be able to depend on stuff other than input nodes since graph_df depends
+    also on the instance variables, like self.children.
     
+    --
+    Isn't every node a composite operation? How is scope determined then?
+    Some concept I have is here wrong.
+    
+    A different way to manage this project? 
+    Take some time off, come back in a week and try to put a design on paper on how this thing should look like. 
+    Specify what each class should do and what inherits what.
+    Take special notice of super recursive cases.
     
     
     """
@@ -285,12 +295,10 @@ class CompositeWrapper:
     @staticmethod
     def from_graph_df(fn):
         def wrap_in_composite(instance, wrt, grad, expand_when_graphed=True):
+            # maybe subclassing was a better idea here?
+            # children = [grad] + list(set(instance.children))
             name = "Gradient graph of " + instance.name + " "
-            children = [grad] + list(set(instance.children))
-
-            op = CompositeOperation(children,
-                                    name=name,
-                                    expand_when_graphed=expand_when_graphed)
+            op = CompositeOperation(children=[], name=name, expand_when_graphed=expand_when_graphed)
 
             op.graph = lambda: fn(instance, wrt, grad)
             op.out = op.init_graph()
@@ -302,9 +310,8 @@ class CompositeWrapper:
     @staticmethod
     def from_function(fn):
         def wrap_in_composite(*fn_args, expand_when_graphed=False):
-            op = CompositeOperation(interface=fn_args,
-                                    name=fn.__name__,
-                                    expand_when_graphed=expand_when_graphed)
+            # we also don't need children here?
+            op = CompositeOperation(children=fn_args, name=fn.__name__, expand_when_graphed=expand_when_graphed)
 
             op.graph = lambda: fn(*op.children)
             op.out = op.init_graph()
@@ -315,13 +322,13 @@ class CompositeWrapper:
 
 
 class CompositeOperation(Operation):
-    def __init__(self, interface, name="", expand_when_graphed=True):
+    def __init__(self, children, name="", expand_when_graphed=True):
         """
 
-        :param interface:
+        :param children:
         :param name: 
         """
-        super().__init__(interface, name)
+        super().__init__(children, name)
         self.expand_when_graphed = expand_when_graphed
         self._out = None
 

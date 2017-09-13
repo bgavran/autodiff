@@ -70,9 +70,8 @@ class Recipr(Operation):
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
-        # TODO higher order gradient doesn't seem to be correct?
         if self.node == wrt:
-            return grad * -Recipr(self.node * self.node)
+            return - grad * self * self
         return 0
 
 
@@ -186,6 +185,8 @@ class ReLU(Operation):
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
+        # TODO higher order gradient doesn't seem to be correct?
+        # probably fixed now, but too slow to check?
         if self.node == wrt:
             return grad * self * Recipr(self)
         return 0

@@ -1,4 +1,5 @@
 from unittest import TestCase
+import timeout_decorator
 
 import tensorflow as tf
 
@@ -60,6 +61,7 @@ class TestOneArgOperations(TestCase):
         tf_val = tf_grads + self.w0
         np.testing.assert_allclose(my_val, tf_val)
 
+    @timeout_decorator.timeout(1)
     def oneop(self, var_op, tf_op):
         with self.subTest("f"):
             self.oneop_f(var_op, tf_op)
@@ -67,10 +69,10 @@ class TestOneArgOperations(TestCase):
             self.oneop_df_n_times(var_op, tf_op, n=1)
         with self.subTest("2df"):
             self.oneop_df_n_times(var_op, tf_op, n=2)
-        # with self.subTest("3df"):
-        #     self.oneop_df_n_times(var_op, tf_op, n=3)
-        # with self.subTest("4df"):
-        #     self.oneop_df_n_times(var_op, tf_op, n=4)
+            # with self.subTest("3df"):
+            #     self.oneop_df_n_times(var_op, tf_op, n=3)
+            # with self.subTest("4df"):
+            #     self.oneop_df_n_times(var_op, tf_op, n=4)
 
     def test_sigmoid(self):
         self.oneop(Sigmoid, tf.nn.sigmoid)
@@ -96,5 +98,5 @@ class TestOneArgOperations(TestCase):
     def test_identity(self):
         self.oneop(Identity, tf.identity)
 
-    # def test_tanh(self):
-    #     self.oneop(Tanh, tf.tanh)
+    def test_tanh(self):
+        self.oneop(Tanh, tf.tanh)
