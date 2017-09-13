@@ -7,7 +7,7 @@ Those first principles should encompass some of the new ideas in deep learning w
 ### Current features
 * Dynamic creation of computational graphs
 * Dynamic differentiation of computational graph w.r.t. any variable
-* Support for higher order gradients (broken in the last update, I'm currently fixing it)
+* Support for higher order gradients
 * Extensible code (it's easy to add your own operations)
 * Visualization of the computational graph
 
@@ -22,6 +22,7 @@ An arbitrary neural network is implemented as a directed acyclic graph (DAG).
 
 In this graph, a node represents an `Operation` and directed edges represent flow of information from one operation to another.
 
+Operation can be any mathematical function at all. 
 Incoming edges to an operation represent its domain and operation's outputs represent its codomain (its output).
 
 Operations are closed under composition.
@@ -29,7 +30,7 @@ In other words, composition of outputs of two operations yields a new Operation.
 
 Composition of operations can be abstracted and the inner operations hidden with the `CompositeOperation` class.
 
-`Grad` is a CompositeOperation which takes an operation and returns a new DAG representing the gradient of that operation with respect to a provided variable.
+`Grad` is a CompositeOperation which takes an operation and returns a new DAG representing the gradient of that operation with respect to the provided variable.
 
 Since Grad is a CompositeOperation, it's gradient can be taken in exactly the same way.
 
@@ -43,13 +44,14 @@ These questions are some of my guidelines of deciding how this project should lo
 Usually, the idea is: "lets compute forward pass, then compute gradients, put them through an optimizer and add the result to the parameters".
 
 This seem to be the first principles for training neural networks.
-This is how every tutorial presents it, this is how I learned it and this is probably how most people learned it.
+This is how every backpropgation tutorial presents it, this is how I learned it and this is probably how most people learned it.
 
 However, the [Synthetic Gradients paper](https://arxiv.org/abs/1608.05343) seems to challenge that idea.
 
 What they did is they broke the feedback loop of updating the parameters into several smaller feedback loops, some of which __don't have any Gradient operations in them!__ And it still works! 
+Obivously, the Gradient information *is* used during the training, but it seems that a functional, efficient update can be performed with just an approximation of the Gradient.
 
-This obviously means that the core principles outlined above aren't really *core* principles and that there's something else going on.
+This means that the core principles outlined above aren't really *core* principles and that there's something else going on.
 
 #### What it means to _use an optimizer_ while training neural networks?
 
