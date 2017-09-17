@@ -260,11 +260,18 @@ class Tanh(CompositeOperation):
 class Sigmoid(CompositeOperation):
     def __init__(self, node, name="Sigmoid", expand_when_graphed=False):
         super().__init__([node], name=name, expand_when_graphed=expand_when_graphed)
+        self.node = self.children[0]
         self.out = self.init_graph()
 
     def graph(self):
-        node = self.children[0]
-        return 1 / (1 + Exp(-node))
+        return 1 / (1 + Exp(-self.node))
+
+    # This is not needed, but is a simplification?
+    @CompositeWrapper.from_graph_df
+    def graph_df(self, wrt, grad):
+        if wrt == self.node:
+            return grad * self * (1 - self)
+        return 0
 
 
 class SquaredDifference(CompositeOperation):

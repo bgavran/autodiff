@@ -1,4 +1,5 @@
 from unittest import TestCase
+import timeout_decorator
 
 import tensorflow as tf
 
@@ -9,8 +10,8 @@ from tests import utils
 class TestTwoArgScalarOperations(TestCase):
     def setUp(self):
         np.random.seed(1337)
-        self.w0 = np.random.rand()
-        self.w1 = np.random.rand()
+        self.w0 = np.random.randn()
+        self.w1 = np.random.randn()
 
         self.tf_w0 = tf.placeholder(dtype=tf.float64)
         self.tf_w1 = tf.placeholder(dtype=tf.float64)
@@ -43,6 +44,7 @@ class TestTwoArgScalarOperations(TestCase):
         tf_val = tf_grads + self.w0
         np.testing.assert_allclose(my_val, tf_val)
 
+    @timeout_decorator.timeout(3)
     def oneop(self, var_op, tf_op):
         print("---------- " + "inputs" + "   ----------")
         print("w0:", self.w0)

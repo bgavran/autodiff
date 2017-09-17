@@ -20,7 +20,8 @@ class Node:
             self.name = os.path.join(name)
 
     def __str__(self):
-        return "//".join(self.context + [self.name])
+        return self.name + " " + str(self.id)
+        # return "//".join(self.context + [self.name])
 
     def __add__(self, other):
         from core.ops import Add
@@ -162,14 +163,17 @@ class Operation(Node):
 
     def find_nodes(self, with_context=True):
         """
-        Traces back throughout the nodes children and returns of a list of nodes.
+        Recursively traces back throughout the children of nodes (starting from this one).
         The elements of the list depend on with_context variable.
         If with_context=True:
             returns nodes with the same context
         else:
             returns just the top nodes that have different context (not their children)
 
+        :return: a list of nodes
         """
+        # TODO what's the complexity of this?
+
         ll = []
         if with_context:
             ll.append(self)
@@ -180,12 +184,13 @@ class Operation(Node):
             else:
                 if not with_context:
                     ll.append(child)
-        return set(ll)
+        return list(set(ll))
 
     def reverse_topo_sort(self):
         """
-        Can this be done more efficiently?
+        DFS algorithm for topo sort
 
+        Can this be done more efficiently?
         """
 
         def mark_node_in_graph(node):
@@ -239,6 +244,13 @@ class Operation(Node):
 
     def add_node_subgraph_to_plot_graph(self, digraph):
         if str(self.id) not in digraph.set_of_added_nodes:
+            # For each node, add the node's Composite parent/context
+            # The Composite context should decide if the node should be added?
+
+            # Node's context should not be names, but actual CompositeObjects?
+            # But can we recursively add node's context first?
+            # At which point should the actual node be added?
+
             # Add node
             digraph.add_node_with_context(self, self.context)
 
@@ -294,9 +306,11 @@ class Variable(Operation):
 class CompositeWrapper:
     @staticmethod
     def from_graph_df(fn):
-        def wrap_in_composite(instance, wrt, grad, expand_when_graphed=True):
+        def wrap_in_composite(instance, wrt, grad, expand_when_graphed=False):
             # maybe subclassing was a better idea here?
+
             # children = [grad] + list(set(instance.children))
+            # we pass empty list of children here because they will be found anyway?
             name = "Gradient graph of " + instance.name + " "
             op = CompositeOperation(children=[], name=name, expand_when_graphed=expand_when_graphed)
 
@@ -312,6 +326,8 @@ class CompositeWrapper:
         def wrap_in_composite(*fn_args, expand_when_graphed=False):
             # we also don't need children here?
             op = CompositeOperation(children=fn_args, name=fn.__name__, expand_when_graphed=expand_when_graphed)
+
+            # what if the function had depended on some variables outside of its scope? Do we allow for that?
 
             op.graph = lambda: fn(*op.children)
             op.out = op.init_graph()
@@ -333,8 +349,8 @@ class CompositeOperation(Operation):
         self._out = None
 
     def init_graph(self):
-        ctx = self.name + " " + str(self.id)
-        with Node.add_context(ctx):
+        # ctx = self.name + " " + str(self.id)
+        with Node.add_context(self):
             out = self.graph()
         assert out is not None
 
@@ -375,7 +391,7 @@ class CompositeOperation(Operation):
 
     # @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
-        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name)
+        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name, expand_when_graphed=True)
 
     def graph(self):
         """
@@ -423,6 +439,8 @@ class Grad(CompositeOperation):
 
         for node in reverse_sorted_nodes:
             dct[node.id] = Add(*dct[node.id], name=node.name + "_grad_sum")
+            if node.id == self.wrt.id:
+                break
 
             for child in set(node.children):
                 app = node.graph_df(child, grad=dct[node.id])

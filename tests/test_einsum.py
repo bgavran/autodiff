@@ -8,10 +8,10 @@ from core.ops import *
 class TestEinSum(TestCase):
     def setUp(self):
         np.random.seed(1337)
-        self.w0 = np.random.rand(2, 3)
-        self.w1 = np.random.rand(3, 5)
-        self.w2 = np.random.rand(5, 5)
-        self.w3 = np.random.rand(5, 7)
+        self.w0 = np.random.randn(2, 3)
+        self.w1 = np.random.randn(3, 5)
+        self.w2 = np.random.randn(5, 5)
+        self.w3 = np.random.randn(5, 7)
 
         self.tf_w0 = tf.constant(self.w0)
         self.tf_w1 = tf.constant(self.w1)

@@ -38,7 +38,7 @@ class MyDigraph(Digraph):
         if len(ctx):
             with self.subgraph(name="cluster" + str(ctx[0])) as subgraph:
                 subgraph.attr(color="blue")
-                subgraph.attr(label=ctx[0])
+                subgraph.attr(label=str(ctx[0]))
 
                 subgraph.add_node_with_context(node, ctx[1:])
         else:

@@ -10,8 +10,8 @@ class TestTwoArgScalarOperations(TestCase):
     def setUp(self):
         np.random.seed(1337)
 
-        self.w0 = np.random.rand(2, 3)
-        self.w1 = np.random.rand(3, 5)
+        self.w0 = np.random.randn(2, 3)
+        self.w1 = np.random.randn(3, 5)
 
         self.tf_w0 = tf.placeholder(dtype=tf.float64)
         self.tf_w1 = tf.placeholder(dtype=tf.float64)
@@ -40,8 +40,8 @@ class TestTwoArgScalarOperations(TestCase):
         print("---------- " + str(n) + "df ----------")
         print("My_val:", my_grads)
         print("Tf_val:", tf_grads)
-        my_val = my_grads + self.w0
-        tf_val = tf_grads + self.w0
+        my_val = my_grads + self.my_input_dict[my_var]
+        tf_val = tf_grads + self.tf_input_dict[tf_var]
         np.testing.assert_allclose(my_val, tf_val)
 
     def oneop_f(self, var_op, tf_op):

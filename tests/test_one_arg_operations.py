@@ -11,7 +11,7 @@ from tests import utils
 class TestOneArgOperations(TestCase):
     def setUp(self):
         np.random.seed(1337)
-        self.w0 = np.random.rand(2, 3)
+        self.w0 = np.random.randn(2, 3)
 
         self.tf_w0 = tf.placeholder(dtype=tf.float64)
         self.var_w0 = Variable(name="w0")
@@ -69,10 +69,10 @@ class TestOneArgOperations(TestCase):
             self.oneop_df_n_times(var_op, tf_op, n=1)
         with self.subTest("2df"):
             self.oneop_df_n_times(var_op, tf_op, n=2)
-            # with self.subTest("3df"):
-            #     self.oneop_df_n_times(var_op, tf_op, n=3)
-            # with self.subTest("4df"):
-            #     self.oneop_df_n_times(var_op, tf_op, n=4)
+        # with self.subTest("3df"):
+        #     self.oneop_df_n_times(var_op, tf_op, n=3)
+        # with self.subTest("4df"):
+        #     self.oneop_df_n_times(var_op, tf_op, n=4)
 
     def test_sigmoid(self):
         self.oneop(Sigmoid, tf.nn.sigmoid)

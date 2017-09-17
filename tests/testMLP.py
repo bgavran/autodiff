@@ -17,9 +17,9 @@ class TestMLP(TestCase):
         input_size = 20
         hidden_size = 40
         output_size = 5
-        self.x = np.random.rand(batch_size, input_size)
-        self.w1 = np.random.rand(input_size, hidden_size)
-        self.w2 = np.random.rand(hidden_size, output_size)
+        self.x = np.random.randn(batch_size, input_size)
+        self.w1 = np.random.randn(input_size, hidden_size)
+        self.w2 = np.random.randn(hidden_size, output_size)
 
         self.tf_x = tf.constant(self.x)
         self.tf_w1 = tf.constant(self.w1)

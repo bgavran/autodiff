@@ -24,8 +24,8 @@ class TestOperation(TestCase):
 
         """
         np.random.seed(1337)
-        self.x = np.random.rand(2, 3)
-        self.w = np.random.rand(3, 5)
+        self.x = np.random.randn(2, 3)
+        self.w = np.random.randn(3, 5)
 
         self.tf_x = tf.placeholder(dtype=tf.float64)
         self.tf_w = tf.placeholder(dtype=tf.float64)
