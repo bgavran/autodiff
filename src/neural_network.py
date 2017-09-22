@@ -6,16 +6,12 @@ np.random.seed(1337)
 # Similar question: difference between eval() and graph() ?
 # There should be some connection?
 
-# The difference is that eval() needs a feed_dict, while graph() doesn't?
-# Edit: eval doesn't need a feed_dict anymore? :)
-
 """
 TODO list:
 * Perhaps I should first try making the network work and then see what needs to be done?
 
 * Adding checkpoints
 * Restructuring code (is Grad a class, just a function and how do checkpoints work with it?)
-* Removing feed dict and enabling another way of inputting data into the network
 * If there are N weight variables that need to be updated, how are computational graphs created then?
 
 """
@@ -61,7 +57,3 @@ for i in range(n_steps):
     w0 = step(x1, w0, graph_expand=False)
 
 plot_comp_graph(w0, view=False)
-
-#
-# print(inpd[w0_val])
-# res = w0_val[]

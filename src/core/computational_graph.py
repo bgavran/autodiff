@@ -21,10 +21,28 @@ class Context:
         return str(self.root_node)
 
 
+def _constant_wrapper(init_function):
+    """
+    Decorator for the Node class which wraps any normal number into a Constant
+    """
+
+    def wrap_all_children(self, children, name):
+        for i, child in enumerate(children):
+            if isinstance(child, numbers.Number):
+                children[i] = Variable(child)
+            if not isinstance(children[i], Node):
+                raise ValueError("Input to op '" + name + "' is a " + str(type(children[i])) + "!!!")
+        return init_function(self, children, name)
+
+    return wrap_all_children
+
+
 class Node:
     context_list = []
 
-    def __init__(self, name):
+    @_constant_wrapper
+    def __init__(self, children, name):
+        self.children = children
         if len(Node.context_list) == 0:
             Node.context_list.append(Context(""))
         self.id = Node.context_list[-1].add_to_context(self)
@@ -85,22 +103,6 @@ class Node:
         from core.ops import Recipr
         return Recipr(self).__mul__(other)
 
-    @staticmethod
-    def _constant_wrapper(init_function):
-        """
-        Decorator for the Node class which wraps any normal number into a Constant
-        """
-
-        def wrap_all_children(self, children, name):
-            for i, child in enumerate(children):
-                if isinstance(child, numbers.Number):
-                    children[i] = Variable(child)
-                if not isinstance(children[i], Node):
-                    raise ValueError("Input to op '" + name + "' is a " + str(type(children[i])) + "!!!")
-            return init_function(self, children, name)
-
-        return wrap_all_children
-
     def get_node_for_graph(self):
         return self
 
@@ -113,14 +115,10 @@ class Node:
         finally:
             del Node.context_list[-1]
 
-
-class Primitive(Node):
-    epsilon = 1e-12
-
-    @Node._constant_wrapper
-    def __init__(self, children, name=""):
-        super().__init__(name)
-        self.children = children
+    def apply_on_self_and_children(self, fn, *args, **kwargs):
+        fn(self, *args, **kwargs)
+        for child in set(self.children):
+            Node.apply_on_self_and_children(child, fn, *args, **kwargs)
 
     @contextmanager
     def mark_node_in_graph(self):
@@ -145,11 +143,6 @@ class Primitive(Node):
                 reverse_sorted_nodes.extend(app)
 
         return reverse_sorted_nodes
-
-    def apply_on_self_and_children(self, fn, *args, **kwargs):
-        fn(self, *args, **kwargs)
-        for child in set(self.children):
-            Primitive.apply_on_self_and_children(child, fn, *args, **kwargs)
 
     def __iter__(self):
         yield self
@@ -181,25 +174,7 @@ class Primitive(Node):
                     ll.append(child)
         return list(set(ll))
 
-    def all_nodes(self):
-        return set(self)
-
-    def find_node_by_id(self, node_id):
-        for node in self.all_nodes():
-            if node.id == node_id:
-                return node
-        raise ValueError("Node with id", node_id, "doesn't exist!")
-
-    def eval(self):
-        raise NotImplementedError()
-
-    def graph_df(self, wrt, grad):
-        raise NotImplementedError()
-
-    def __call__(self, *args, **kwargs):
-        return self.eval(*args, **kwargs)
-
-    def get_ctx_node(self, next_to_last=False):
+    def get_ctx_node(self):
         for ctx in self.context_list:
             if not ctx.root_node == "" and not ctx.root_node.graph_expand:
                 return ctx.root_node
@@ -216,7 +191,23 @@ class Primitive(Node):
             # Make each of the children do the same
             for child in self.children:
                 # If the child is part of a CompOp which is not expanded, add the CompOp to subgraph
-                child.get_ctx_node(next_to_last=True).add_node_subgraph_to_plot_graph(digraph)
+                child.get_ctx_node().add_node_subgraph_to_plot_graph(digraph)
+
+
+class Primitive(Node):
+    epsilon = 1e-12
+
+    def __init__(self, children, name=""):
+        super().__init__(children, name)
+
+    def eval(self):
+        raise NotImplementedError()
+
+    def graph_df(self, wrt, grad):
+        raise NotImplementedError()
+
+    def __call__(self, *args, **kwargs):
+        return self.eval()
 
 
 class Variable(Primitive):
@@ -271,7 +262,7 @@ class CompositeWrapper:
 
 
 class CompositeOperation(Primitive):
-    def __init__(self, children, name="", graph_expand=True):
+    def __init__(self, children, name="", graph_expand=False):
         """
 
         :param children:
@@ -322,7 +313,7 @@ class CompositeOperation(Primitive):
 
     # @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
-        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name, graph_expand=True)
+        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name, graph_expand=False)
 
     def graph(self):
         """
@@ -350,7 +341,7 @@ class Add(Primitive):
 
 
 def _initial_grad_wrapper(init_fn):
-    def add_init_grad(self, node, wrt, initial_grad=None, name="", graph_expand=True):
+    def add_init_grad(self, node, wrt, initial_grad=None, name="", graph_expand=False):
         if initial_grad is None:
             initial_grad = Variable(1, name="init_grad")
 
@@ -361,7 +352,7 @@ def _initial_grad_wrapper(init_fn):
 
 class Grad(CompositeOperation):
     @_initial_grad_wrapper
-    def __init__(self, node, wrt, initial_grad, name="", graph_expand=True):
+    def __init__(self, node, wrt, initial_grad, name="", graph_expand=False):
         super().__init__([node],
                          name=name + " grad w_val.r.t. '" + str(wrt) + "'",
                          graph_expand=graph_expand)
@@ -395,17 +386,11 @@ class Grad(CompositeOperation):
 def checkpoint(fn):
     # how does wrapping grad_fn in a primitive look, since it depends on stuff other than whats passed
     # to it?
-    def wrap_in_primitive(*fn_args):
+    def wrap_in_primitive(*fn_args, **kwargs):
         op = Primitive(children=fn_args, name=fn.__name__)
 
-        def eval_fn():
-            return fn(*fn_args)()
-
-        def graph_df_fn(wrt, grad):
-            return grad_fn(fn(*fn_args), wrt, grad)
-
-        op.eval = eval_fn
-        op.graph_df = graph_df_fn
+        op.eval = lambda: fn(*fn_args, **kwargs)()
+        op.graph_df = lambda wrt, grad: grad_fn(fn(*fn_args, **kwargs), wrt, grad)
 
         return op
 
@@ -437,4 +422,3 @@ def grad_fn(top_node, wrt, initial_grad=None):
         return val
     else:
         return Add(*val, name=wrt.name + "_grad_sum")
-

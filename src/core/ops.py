@@ -274,7 +274,7 @@ class Sigmoid(CompositeOperation):
 
 
 class SquaredDifference(CompositeOperation):
-    def __init__(self, first, second, name="Squared_diff", graph_expand=True):
+    def __init__(self, first, second, name="Squared_diff", graph_expand=False):
         super().__init__([first, second], name=name, graph_expand=graph_expand)
         self.out = self.init_graph()
 
