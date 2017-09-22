@@ -13,6 +13,8 @@ TODO list:
 * Adding checkpoints
 * Restructuring code (is Grad a class, just a function and how do checkpoints work with it?)
 * If there are N weight variables that need to be updated, how are computational graphs created then?
+* Computational graph graph_expanded doesn't seem to be working when there's two grads in a row? Might 
+get automatically solved when checkpoint and grad_fn gets solved?
 
 """
 

@@ -133,13 +133,17 @@ class Node:
             self.apply_on_self_and_children(lambda node: mark_node(node, False))
 
     def reverse_topo_sort(self):
-        # TODO document this method
+        # TODO document the differences between these two methods (this and rev_ts())
+        with self.mark_node_in_graph():
+            return self.rev_ts()
+
+    def rev_ts(self):
         reverse_sorted_nodes = []
         for node in reversed(self.context_list[-1].topo_sort):
             if node.in_graph:
                 reverse_sorted_nodes.append(node)
             elif isinstance(node, CompositeOperation) and node.context.has_subnode_in_graph:
-                app = node.out.reverse_topo_sort()
+                app = node.out.rev_ts()
                 reverse_sorted_nodes.extend(app)
 
         return reverse_sorted_nodes
@@ -313,7 +317,7 @@ class CompositeOperation(Primitive):
 
     # @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
-        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name, graph_expand=False)
+        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name, graph_expand=True)
 
     def graph(self):
         """
@@ -354,15 +358,14 @@ class Grad(CompositeOperation):
     @_initial_grad_wrapper
     def __init__(self, node, wrt, initial_grad, name="", graph_expand=False):
         super().__init__([node],
-                         name=name + " grad w_val.r.t. '" + str(wrt) + "'",
+                         name=name + " grad w.r.t. '" + str(wrt) + "'",
                          graph_expand=graph_expand)
         self.wrt = wrt
         self.initial_grad = initial_grad
         self.out = self.init_graph()
 
     def graph(self):
-        with self.children[0].mark_node_in_graph():
-            reverse_sorted_nodes = self.children[0].reverse_topo_sort()
+        reverse_sorted_nodes = self.children[0].reverse_topo_sort()
 
         dct = collections.defaultdict(list)
         dct[self.children[0]].append(self.initial_grad)
@@ -402,8 +405,7 @@ def grad_fn(top_node, wrt, initial_grad=None):
     # it should be okay here since grad_fn is not an op? or is it?
     if initial_grad is None:
         initial_grad = Variable(1, name="init_grad")
-    with top_node.mark_node_in_graph():
-        reverse_sorted_nodes = top_node.reverse_topo_sort()
+    reverse_sorted_nodes = top_node.reverse_topo_sort()
 
     dct = collections.defaultdict(list)
     dct[top_node].append(initial_grad)
