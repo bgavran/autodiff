@@ -1,27 +1,17 @@
 from utils import *
 
-"""
-Plan:
-* Idea to simplify comp. graphs might not be good, need to analyze why it's slow first!
-* Profiling
-* Grad buffer a good idea?
-* 
-"""
-
-np.random.seed(1337)
-
 x1 = Variable(name="x1")
 w1 = Variable(name="w1")
 
-graph = x1 @ w1
+sqr = SquaredDifference(x1, w1, graph_expand=False)
 
-graph = Grad(graph, wrt=w1, expand_when_graphed=True)
-plot_comp_graph(graph, view=False)
+grad1 = Grad(sqr, wrt=x1, graph_expand=False)
+grad2 = Grad(grad1, wrt=x1, graph_expand=False)
 
-inpd = {x1: np.random.randn(2, 3), w1: np.random.randn(3, 5)}
-res = graph.eval(inpd)
-# print("x1:", x1.eval(inpd))
-# print("----")
-# print("w1:", w1.eval(inpd))
-print("----")
-print(res.shape)
+inpd = {x1: 7, w1: 3}
+
+print("Squared difference:", sqr(inpd))
+print("Derivative with respect to x1:", grad1(inpd))
+print("Second derivative with respect to x1:", grad2(inpd))
+
+plot_comp_graph(grad2, view=False)

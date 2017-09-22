@@ -1,4 +1,5 @@
 from unittest import TestCase
+import timeout_decorator
 
 import tensorflow as tf
 
@@ -63,6 +64,7 @@ class TestTwoArgScalarOperations(TestCase):
         print("-----------------------")
         np.testing.assert_allclose(my_val, tf_val)
 
+    @timeout_decorator.timeout(2)
     def oneop(self, var_op, tf_op):
         print("---------- " + "inputs" + "   ----------")
         print("w0:", self.w0)

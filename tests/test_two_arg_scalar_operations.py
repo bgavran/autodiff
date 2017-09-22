@@ -9,9 +9,9 @@ from tests import utils
 
 class TestTwoArgScalarOperations(TestCase):
     def setUp(self):
-        np.random.seed(1337)
-        self.w0 = np.random.randn()
-        self.w1 = np.random.randn()
+        np.random.seed(1336)
+        self.w0 = np.random.rand()
+        self.w1 = np.random.rand()
 
         self.tf_w0 = tf.placeholder(dtype=tf.float64)
         self.tf_w1 = tf.placeholder(dtype=tf.float64)
@@ -22,11 +22,11 @@ class TestTwoArgScalarOperations(TestCase):
         self.my_input_dict = {self.var_w0: self.w0, self.var_w1: self.w1}
         self.tf_input_dict = {self.tf_w0: self.w0, self.tf_w1: self.w1}
 
-    def oneop_df_n_times(self, var_op, tf_op, wrt_vars, n=1):
+    def oneop_df_n_times(self, my_op, tf_op, wrt_vars, n=1):
         my_var, tf_var = wrt_vars
 
         tf_graph = tf_op(self.tf_w0, self.tf_w1)
-        my_graph = var_op(self.var_w0, self.var_w1)
+        my_graph = my_op(self.var_w0, self.var_w1)
 
         my_graph, tf_graph = utils.differentiate_n_times(my_graph, tf_graph, my_var, tf_var, n=n)
 
@@ -44,28 +44,28 @@ class TestTwoArgScalarOperations(TestCase):
         tf_val = tf_grads + self.w0
         np.testing.assert_allclose(my_val, tf_val)
 
-    @timeout_decorator.timeout(3)
-    def oneop(self, var_op, tf_op):
+    @timeout_decorator.timeout(2)
+    def oneop(self, my_op, tf_op):
         print("---------- " + "inputs" + "   ----------")
         print("w0:", self.w0)
         print("w1:", self.w1)
         print("-------------------------")
         with self.subTest("f"):
-            self.oneop_df_n_times(var_op, tf_op, [self.var_w0, self.tf_w0], n=0)
+            self.oneop_df_n_times(my_op, tf_op, [self.var_w0, self.tf_w0], n=0)
         with self.subTest("df_wrt_w0"):
-            self.oneop_df_n_times(var_op, tf_op, [self.var_w0, self.tf_w0], n=1)
+            self.oneop_df_n_times(my_op, tf_op, [self.var_w0, self.tf_w0], n=1)
         with self.subTest("df_wrt_w1"):
-            self.oneop_df_n_times(var_op, tf_op, [self.var_w1, self.tf_w1], n=1)
+            self.oneop_df_n_times(my_op, tf_op, [self.var_w1, self.tf_w1], n=1)
 
         with self.subTest("2df_wrt_w0"):
-            self.oneop_df_n_times(var_op, tf_op, [self.var_w0, self.tf_w0], n=2)
+            self.oneop_df_n_times(my_op, tf_op, [self.var_w0, self.tf_w0], n=2)
         with self.subTest("2df_wrt_w1"):
-            self.oneop_df_n_times(var_op, tf_op, [self.var_w1, self.tf_w1], n=2)
+            self.oneop_df_n_times(my_op, tf_op, [self.var_w1, self.tf_w1], n=2)
 
         with self.subTest("3df_wrt_w0"):
-            self.oneop_df_n_times(var_op, tf_op, [self.var_w0, self.tf_w0], n=3)
+            self.oneop_df_n_times(my_op, tf_op, [self.var_w0, self.tf_w0], n=3)
         with self.subTest("3df_wrt_w1"):
-            self.oneop_df_n_times(var_op, tf_op, [self.var_w1, self.tf_w1], n=3)
+            self.oneop_df_n_times(my_op, tf_op, [self.var_w1, self.tf_w1], n=3)
 
     def test_add(self):
         self.oneop(Add, tf.add)

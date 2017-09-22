@@ -11,7 +11,7 @@ Those first principles should encompass some of the new ideas in deep learning w
 * Extensible code (it's easy to add your own operations)
 * Visualization of the computational graph
 
-Disclaimer: You can probably break any of those things above if you try. 
+Disclaimer: This is a proof of concept, rather than a usable framework. It's not optimized and you can probably break any of those things above if you try. 
 Foundations are there but I'm still trying understand how [good code](https://xkcd.com/844/) should look.
 
 Everything is implemented only in Python 3.6 and numpy and is a heavy Work In Progress.

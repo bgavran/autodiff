@@ -2,7 +2,7 @@ import re
 from core.computational_graph import *
 
 
-class Identity(Operation):
+class Identity(Primitive):
     def __init__(self, node, name="Identity"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -16,18 +16,17 @@ class Identity(Operation):
         return 0
 
 
-class Mul(Operation):
+class Mul(Primitive):
     def __init__(self, *elems, name="Mul"):
         if not elems:
-            name = "1-Mul"
+            name = "1-" + name
         super().__init__(list(elems), name)
 
     def eval(self, input_dict):
-        arr = [elem(input_dict) for elem in self.children]
         # Using python's functions instead of numpy.prod since prod doesn't do type checking
         prod = 1
-        for val in arr:
-            prod *= val
+        for elem in self.children:
+            prod = np.multiply(prod, elem(input_dict))
         return prod
 
     @CompositeWrapper.from_graph_df
@@ -39,7 +38,7 @@ class Mul(Operation):
         return grad * Add(*add_list)
 
 
-class Negate(Operation):
+class Negate(Primitive):
     def __init__(self, node, name="Negate"):
         super().__init__([node], name)
         self.node = node
@@ -55,7 +54,7 @@ class Negate(Operation):
             return 0
 
 
-class Recipr(Operation):
+class Recipr(Primitive):
     def __init__(self, node, name="Reciprocal"):
         """
         Elementwise reciprocal
@@ -66,7 +65,7 @@ class Recipr(Operation):
 
     def eval(self, input_dict):
         val = self.node(input_dict)
-        return 1 / (val + Operation.epsilon)
+        return 1 / (val + Primitive.epsilon)
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -75,7 +74,7 @@ class Recipr(Operation):
         return 0
 
 
-class Transpose(Operation):
+class Transpose(Primitive):
     def __init__(self, node, name="Transpose"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -90,15 +89,15 @@ class Transpose(Operation):
 
 
 class MatMul(CompositeOperation):
-    def __init__(self, a, b, name="MatMul", expand_when_graphed=False):
-        super().__init__([a, b], name, expand_when_graphed=expand_when_graphed)
+    def __init__(self, a, b, name="MatMul", graph_expand=True):
+        super().__init__([a, b], name, graph_expand=graph_expand)
         self.out = self.init_graph()
 
     def graph(self):
         return EinSum("ij,jk->ik", self.children[0], self.children[1])
 
 
-class EinSum(Operation):
+class EinSum(Primitive):
     def __init__(self, op_str, *operands, name="EinSum"):
         super().__init__(list(operands), name)
         self.op_str = op_str
@@ -175,7 +174,7 @@ class EinSum(Operation):
         return ",".join(list_of_ops[:-1]) + "->" + list_of_ops[-1]
 
 
-class ReLU(Operation):
+class ReLU(Primitive):
     def __init__(self, node, name="ReLU"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -195,7 +194,7 @@ class ReLU(Operation):
         return self.node(input_dict) > 0
 
 
-class Pow(Operation):
+class Pow(Primitive):
     def __init__(self, first, second, name="Pow"):
         super().__init__([first, second], name)
         self.first = self.children[0]
@@ -204,6 +203,7 @@ class Pow(Operation):
     def eval(self, input_dict):
         f = self.first(input_dict)
         s = self.second(input_dict)
+
         return np.power(f, s)
 
     @CompositeWrapper.from_graph_df
@@ -217,13 +217,13 @@ class Pow(Operation):
         return 0
 
 
-class Log(Operation):
+class Log(Primitive):
     def __init__(self, node, name="Log"):
         super().__init__([node], name)
         self.node = self.children[0]
 
     def eval(self, input_dict):
-        return np.log(self.node(input_dict) + Operation.epsilon)
+        return np.log(self.node(input_dict) + Primitive.epsilon)
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -232,7 +232,7 @@ class Log(Operation):
         return 0
 
 
-class Exp(Operation):
+class Exp(Primitive):
     def __init__(self, node, name="Exp"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -248,8 +248,8 @@ class Exp(Operation):
 
 
 class Tanh(CompositeOperation):
-    def __init__(self, node, name="Tanh", expand_when_graphed=False):
-        super().__init__([node], name, expand_when_graphed=expand_when_graphed)
+    def __init__(self, node, name="Tanh", graph_expand=False):
+        super().__init__([node], name, graph_expand=graph_expand)
         self.out = self.init_graph()
 
     def graph(self):
@@ -258,8 +258,8 @@ class Tanh(CompositeOperation):
 
 
 class Sigmoid(CompositeOperation):
-    def __init__(self, node, name="Sigmoid", expand_when_graphed=False):
-        super().__init__([node], name=name, expand_when_graphed=expand_when_graphed)
+    def __init__(self, node, name="Sigmoid", graph_expand=False):
+        super().__init__([node], name=name, graph_expand=graph_expand)
         self.node = self.children[0]
         self.out = self.init_graph()
 
@@ -275,8 +275,8 @@ class Sigmoid(CompositeOperation):
 
 
 class SquaredDifference(CompositeOperation):
-    def __init__(self, first, second, name="Squared_diff", expand_when_graphed=True):
-        super().__init__([first, second], name=name, expand_when_graphed=expand_when_graphed)
+    def __init__(self, first, second, name="Squared_diff", graph_expand=True):
+        super().__init__([first, second], name=name, graph_expand=graph_expand)
         self.out = self.init_graph()
 
     def graph(self):
@@ -288,8 +288,8 @@ class SquaredDifference(CompositeOperation):
 
 
 class TestRecursivelyComposite(CompositeOperation):
-    def __init__(self, node, count=1, name="Test_Composite", expand_when_graphed=True):
-        super().__init__([node], name=name, expand_when_graphed=expand_when_graphed)
+    def __init__(self, node, count=1, name="Test_Composite", graph_expand=True):
+        super().__init__([node], name=name, graph_expand=graph_expand)
         self.count = count
         self.out = self.init_graph()
 
@@ -300,6 +300,6 @@ class TestRecursivelyComposite(CompositeOperation):
         if self.count:
             return node * (1 + TestRecursivelyComposite(node,
                                                         count=self.count - 1,
-                                                        expand_when_graphed=self.expand_when_graphed))
+                                                        graph_expand=self.graph_expand))
         else:
-            return SquaredDifference(node, t, expand_when_graphed=True)
+            return SquaredDifference(node, t, graph_expand=True)

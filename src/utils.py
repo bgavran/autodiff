@@ -25,11 +25,11 @@ class MyDigraph(Digraph):
             super().subgraph(graph, name, comment, graph_attr, node_attr, edge_attr, body)
 
     def add_node(self, node):
-        attributes = {"label": node.name,
+        attributes = {"label": str(node),
                       "color": MyDigraph.get_color(node),
                       "shape": MyDigraph.get_shape(node)}
 
-        self.node(str(node.id), **attributes)
+        self.node(node.graph_name(), **attributes)
 
     def add_node_with_context(self, node, ctx):
         """
@@ -47,9 +47,10 @@ class MyDigraph(Digraph):
     def add_edge(self, child, parent):
         child = child.get_node_for_graph()
         parent = parent.get_node_for_graph()
-        self.edge(str(child.id),
-                  str(parent.id),
-                  **{"style": MyDigraph.get_edge_style(parent)})
+        if child != parent:
+            self.edge(child.graph_name(),
+                      parent.graph_name(),
+                      **{"style": MyDigraph.get_edge_style(parent)})
 
     @staticmethod
     def get_color(node):

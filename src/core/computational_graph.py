@@ -5,23 +5,42 @@ import numpy as np
 from contextlib import contextmanager
 
 
+class Context:
+    def __init__(self, root_node):
+        self.root_node = root_node
+        self.inner_id = 0
+        self.has_subnode_in_graph = False
+        self.topo_sort = []
+
+    def add_to_context(self, node):
+        self.inner_id += 1
+        self.topo_sort.append(node)
+        return self.inner_id - 1
+
+    def __str__(self):
+        return str(self.root_node)
+
+
 class Node:
-    id = 0
-    context = []
+    context_list = []
 
     def __init__(self, name):
-        self.id = Node.id
-        Node.id += 1
+        if len(Node.context_list) == 0:
+            Node.context_list.append(Context(""))
+        self.id = Node.context_list[-1].add_to_context(self)
 
-        self.context = Node.context.copy()
+        self.in_graph = False
+        self.context_list = Node.context_list.copy()
         if name == "":
             self.name = os.path.join("id_" + str(self.id))
         else:
             self.name = os.path.join(name)
 
+    def graph_name(self):
+        return "/".join([str(ctx) for ctx in self.context_list]) + " " + str(self.id)
+
     def __str__(self):
         return self.name + " " + str(self.id)
-        # return "//".join(self.context + [self.name])
 
     def __add__(self, other):
         from core.ops import Add
@@ -76,25 +95,26 @@ class Node:
             for i, child in enumerate(children):
                 if isinstance(child, numbers.Number):
                     children[i] = Constant(child)
-                assert isinstance(children[i], Node)
+                if not isinstance(children[i], Node):
+                    raise ValueError("Input to op '" + name + "' is a " + str(type(children[i])) + "!!!")
             return init_function(self, children, name)
 
         return wrap_all_children
 
-    @staticmethod
-    @contextmanager
-    def add_context(ctx):
-        Node.context.append(ctx)
-        try:
-            yield
-        finally:
-            Node.context.pop()
-
     def get_node_for_graph(self):
         return self
 
+    @staticmethod
+    @contextmanager
+    def add_context(ctx):
+        Node.context_list.append(ctx)
+        try:
+            yield
+        finally:
+            del Node.context_list[-1]
 
-class Operation(Node):
+
+class Primitive(Node):
     epsilon = 1e-12
 
     @Node._constant_wrapper
@@ -102,59 +122,34 @@ class Operation(Node):
         super().__init__(name)
         self.children = children
 
-        for child in set(self.children):
-            child.parents.add(self)
-        self.parents = set()
+    @contextmanager
+    def mark_node_in_graph(self):
+        def mark_node(node, val):
+            node.context_list[-1].has_subnode_in_graph = val
+            node.in_graph = val
 
-        self.visited_topo_sort = False
-        self.temporary_mark = False
-        self.in_graph = False
+        self.apply_on_self_and_children(lambda node: mark_node(node, True))
+        try:
+            yield
+        finally:
+            self.apply_on_self_and_children(lambda node: mark_node(node, False))
+
+    def reverse_topo_sort(self):
+        # TODO document this method
+        reverse_sorted_nodes = []
+        for node in reversed(self.context_list[-1].topo_sort):
+            if node.in_graph:
+                reverse_sorted_nodes.append(node)
+            elif isinstance(node, CompositeOperation) and node.context.has_subnode_in_graph:
+                app = node.out.reverse_topo_sort()
+                reverse_sorted_nodes.extend(app)
+
+        return reverse_sorted_nodes
 
     def apply_on_self_and_children(self, fn, *args, **kwargs):
         fn(self, *args, **kwargs)
         for child in set(self.children):
-            Operation.apply_on_self_and_children(child, fn, *args, **kwargs)
-
-    """
-    Are there any other problems? Is there a problem with node's parents? 
-    Perhaps interfaces are still needed?
-    How many parents do CompositeOperation's children have? Just the CompositeOperation?
-    Then the bottom node in CompOp has a child which is the child of CompOp but that child doesn't have the
-    parent which is the bottom node, but the CompOp node? That seems to make sense.
-    That means the Operation just adds parents if the child node has the same context.
-    
-    But the nodes added in Grad.graph() operation will have children nodes INSIDE the graph()! Do we want that?
-    
-    ---
-    Update: so it seems to work partially, the problem is we still need JUST the real children.
-    Passing all nodes to grad makes the grad be calculated w.r.t. children we don't really need it 
-    calculated.
-    But to know the real children, we first need to calculate the gradient's graph()...
-    Also by passing all children to grad, they have wrong parents also (in gradient's graph()) ?
-    ---
-    So what is the solution?
-    CompOp CAN depend on stuff other than x, we recompute the real children after (BFS).
-    There's no interfaces, but node's parents are needed to efficiently compute topological sort.
-    Sometimes there's a problem with abstarction with Grad (we don't want to display stuff inside a CompOp
-    whose Grad we're taking if its not set to be expanded while graphed).
-    
-    Current problems: too slow. Incorrent on some composite ops? 
-    ---
-    graph_df is wrapped with a composite operation? Should graph_df be a composite operation?
-    That's why CompOp should be able to depend on stuff other than input nodes since graph_df depends
-    also on the instance variables, like self.children.
-    
-    --
-    Isn't every node a composite operation? How is scope determined then?
-    Some concept I have is here wrong.
-    
-    A different way to manage this project? 
-    Take some time off, come back in a week and try to put a design on paper on how this thing should look like. 
-    Specify what each class should do and what inherits what.
-    Take special notice of super recursive cases.
-    
-    
-    """
+            Primitive.apply_on_self_and_children(child, fn, *args, **kwargs)
 
     def __iter__(self):
         yield self
@@ -166,9 +161,9 @@ class Operation(Node):
         Recursively traces back throughout the children of nodes (starting from this one).
         The elements of the list depend on with_context variable.
         If with_context=True:
-            returns nodes with the same context
+            returns nodes with the same context_list
         else:
-            returns just the top nodes that have different context (not their children)
+            returns just the top nodes that have different context_list (not their children)
 
         :return: a list of nodes
         """
@@ -179,50 +174,12 @@ class Operation(Node):
             ll.append(self)
 
         for child in self.children:
-            if child.context == self.context:
+            if child.context_list == self.context_list:
                 ll.extend(child.find_nodes(with_context))
             else:
                 if not with_context:
                     ll.append(child)
         return list(set(ll))
-
-    def reverse_topo_sort(self):
-        """
-        DFS algorithm for topo sort
-
-        Can this be done more efficiently?
-        """
-
-        def mark_node_in_graph(node):
-            node.in_graph = True
-
-        self.apply_on_self_and_children(mark_node_in_graph)  # mark just the dependencies of this node
-        ll = []
-
-        def visit(node):
-            if node.visited_topo_sort:
-                return
-            assert node.temporary_mark is False  # must not be a cyclic graph
-            node.temporary_mark = True
-            for parent in node.parents:
-                if parent.in_graph:
-                    visit(parent)
-
-            node.visited_topo_sort = True
-            ll.append(node)
-
-        for node in self:  # this recursively yields all children
-            if not node.visited_topo_sort:
-                visit(node)
-
-        def fn(instance):
-            instance.visited_topo_sort = False
-            instance.temporary_mark = False
-            instance.in_graph = False
-
-        self.apply_on_self_and_children(fn)  # set back the flags to False
-
-        return ll
 
     def all_nodes(self):
         return set(self)
@@ -242,28 +199,27 @@ class Operation(Node):
     def __call__(self, *args, **kwargs):
         return self.eval(*args, **kwargs)
 
+    def get_ctx_node(self, next_to_last=False):
+        for ctx in self.context_list:
+            if not ctx.root_node == "" and not ctx.root_node.graph_expand:
+                return ctx.root_node
+        return self
+
     def add_node_subgraph_to_plot_graph(self, digraph):
-        if str(self.id) not in digraph.set_of_added_nodes:
-            # For each node, add the node's Composite parent/context
-            # The Composite context should decide if the node should be added?
-
-            # Node's context should not be names, but actual CompositeObjects?
-            # But can we recursively add node's context first?
-            # At which point should the actual node be added?
-
-            # Add node
-            digraph.add_node_with_context(self, self.context)
+        if self.graph_name() not in digraph.set_of_added_nodes:
+            digraph.add_node_with_context(self, self.context_list)
 
             # Add connections to children
             for child in self.children:
-                digraph.add_edge(child, self)
+                digraph.add_edge(child.get_ctx_node(), self)
 
             # Make each of the children do the same
             for child in self.children:
-                child.add_node_subgraph_to_plot_graph(digraph)
+                # If the child is part of a CompOp which is not expanded, add the CompOp to subgraph
+                child.get_ctx_node(next_to_last=True).add_node_subgraph_to_plot_graph(digraph)
 
 
-class Constant(Operation):
+class Constant(Primitive):
     def __init__(self, value, name=None):
         assert isinstance(value, np.ndarray) or isinstance(value, numbers.Number)
         if name is None:
@@ -278,14 +234,12 @@ class Constant(Operation):
         return 0
 
 
-class Variable(Operation):
+class Variable(Primitive):
     def __init__(self, name=""):
         """
-
         Right now, all variables are placeholders?
         All variables need their values to be fed in.
         This class needs to be separated into Variables which have their value? Something like a constant?
-        Except it changes?
 
         :param name:
         """
@@ -306,13 +260,13 @@ class Variable(Operation):
 class CompositeWrapper:
     @staticmethod
     def from_graph_df(fn):
-        def wrap_in_composite(instance, wrt, grad, expand_when_graphed=False):
+        def wrap_in_composite(instance, wrt, grad, graph_expand=True):
             # maybe subclassing was a better idea here?
 
             # children = [grad] + list(set(instance.children))
             # we pass empty list of children here because they will be found anyway?
             name = "Gradient graph of " + instance.name + " "
-            op = CompositeOperation(children=[], name=name, expand_when_graphed=expand_when_graphed)
+            op = CompositeOperation(children=[], name=name, graph_expand=graph_expand)
 
             op.graph = lambda: fn(instance, wrt, grad)
             op.out = op.init_graph()
@@ -323,9 +277,9 @@ class CompositeWrapper:
 
     @staticmethod
     def from_function(fn):
-        def wrap_in_composite(*fn_args, expand_when_graphed=False):
+        def wrap_in_composite(*fn_args, graph_expand=False):
             # we also don't need children here?
-            op = CompositeOperation(children=fn_args, name=fn.__name__, expand_when_graphed=expand_when_graphed)
+            op = CompositeOperation(children=fn_args, name=fn.__name__, graph_expand=graph_expand)
 
             # what if the function had depended on some variables outside of its scope? Do we allow for that?
 
@@ -337,27 +291,25 @@ class CompositeWrapper:
         return wrap_in_composite
 
 
-class CompositeOperation(Operation):
-    def __init__(self, children, name="", expand_when_graphed=True):
+class CompositeOperation(Primitive):
+    def __init__(self, children, name="", graph_expand=True):
         """
 
         :param children:
-        :param name: 
+        :param name:
         """
         super().__init__(children, name)
-        self.expand_when_graphed = expand_when_graphed
+        self.graph_expand = graph_expand
+        self.context = Context(self)
         self._out = None
 
     def init_graph(self):
-        # ctx = self.name + " " + str(self.id)
-        with Node.add_context(self):
+        with Node.add_context(self.context):
             out = self.graph()
         assert out is not None
 
         # this is needed only for Grad. Can it be a bit cleaner?
         self.children = out.find_nodes(with_context=False)
-        for child in set(self.children):
-            child.parents.add(self)
 
         # somehow simplify graphs here?
 
@@ -375,23 +327,23 @@ class CompositeOperation(Operation):
             raise ValueError("_out variable for instance " + self.name + " is already set!")
 
     def get_node_for_graph(self):
-        if self.expand_when_graphed:
+        if self.graph_expand:
             return self.out.get_node_for_graph()
         else:
             return self
 
     def add_node_subgraph_to_plot_graph(self, digraph):
-        if self.expand_when_graphed:
+        if self.graph_expand:
             self.out.add_node_subgraph_to_plot_graph(digraph)
         else:
-            Operation.add_node_subgraph_to_plot_graph(self, digraph)
+            Primitive.add_node_subgraph_to_plot_graph(self, digraph)
 
     def eval(self, input_dict):
         return self.out.eval(input_dict)
 
     # @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
-        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name, expand_when_graphed=True)
+        return Grad(self.out, wrt=wrt, initial_grad=grad, name=self.name, graph_expand=True)
 
     def graph(self):
         """
@@ -402,16 +354,15 @@ class CompositeOperation(Operation):
         raise NotImplementedError()
 
 
-class Add(Operation):
+class Add(Primitive):
     def __init__(self, *elems, name="Add"):
         if not elems:
-            name = "0-Add"
+            name = "0-" + name
         super().__init__(list(elems), name)
 
     def eval(self, input_dict):
-        arr = [elem(input_dict) for elem in self.children]
         # Using python sum instead of np.sum because python converts types correctly
-        return sum(arr)
+        return sum([elem(input_dict) for elem in self.children])
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -419,31 +370,90 @@ class Add(Operation):
         return grad * Constant(wrt_count)
 
 
+def _initial_grad_wrapper(init_fn):
+    def add_init_grad(self, node, wrt, initial_grad=None, name="", graph_expand=True):
+        if initial_grad is None:
+            initial_grad = Constant(1, name="init_grad")
+
+        return init_fn(self, node, wrt, initial_grad=initial_grad, name=name, graph_expand=graph_expand)
+
+    return add_init_grad
+
+
 class Grad(CompositeOperation):
-    def __init__(self, node, wrt, initial_grad=None, name="", expand_when_graphed=True):
+    @_initial_grad_wrapper
+    def __init__(self, node, wrt, initial_grad, name="", graph_expand=True):
         super().__init__([node],
-                         name=name + " grad w.r.t. " + str(wrt),
-                         expand_when_graphed=expand_when_graphed)
+                         name=name + " grad w.r.t. '" + str(wrt) + "'",
+                         graph_expand=graph_expand)
         self.wrt = wrt
-        self.initial_grad = Constant(1, name=node.name + "_grad") if initial_grad is None else initial_grad
+        self.initial_grad = initial_grad
         self.out = self.init_graph()
 
     def graph(self):
-        reverse_sorted_nodes = self.children[0].reverse_topo_sort()
-
-        if self.wrt not in reverse_sorted_nodes:
-            return Constant(0, name=str(self.wrt) + "_zero")
+        with self.children[0].mark_node_in_graph():
+            reverse_sorted_nodes = self.children[0].reverse_topo_sort()
 
         dct = collections.defaultdict(list)
-        dct[reverse_sorted_nodes[0].id].append(self.initial_grad)
+        dct[self.children[0]].append(self.initial_grad)
 
         for node in reverse_sorted_nodes:
-            dct[node.id] = Add(*dct[node.id], name=node.name + "_grad_sum")
-            if node.id == self.wrt.id:
+            dct[node] = Add(*dct[node], name=node.name + "_grad_sum")
+            if node == self.wrt:
                 break
 
             for child in set(node.children):
-                app = node.graph_df(child, grad=dct[node.id])
-                dct[child.id].append(app)
+                app = node.graph_df(wrt=child, grad=dct[node])
+                dct[child].append(app)
 
-        return dct[self.wrt.id]
+        val = dct[self.wrt]
+        if isinstance(val, Add):
+            return val
+        else:
+            return Add(*val, name=self.wrt.name + "_grad_sum")
+
+
+def checkpoint(fn):
+    # how does wrapping grad_fn in a primitive look, since it depends on stuff other than whats passed
+    # to it?
+    def wrap_in_primitive(*fn_args):
+        op = Primitive(children=fn_args, name=fn.__name__)
+
+        def eval_fn(input_dict):
+            return fn(*fn_args)(input_dict)
+
+        # Grad should also be wrapped in a primitive?
+        # TODO Grad should be just a normal function?
+
+        def graph_df_fn(wrt, grad):
+            return grad_fn(fn(*fn_args), wrt, grad)
+
+        op.eval = eval_fn
+        op.graph_df = graph_df_fn
+
+        return op
+
+    return wrap_in_primitive
+
+
+@checkpoint
+def grad_fn(top_node, wrt, initial_grad=None):
+    reverse_sorted_nodes = top_node.reverse_topo_sort()
+
+    dct = collections.defaultdict(list)
+    dct[top_node].append(initial_grad)
+
+    for node in reverse_sorted_nodes:
+        dct[node] = Add(*dct[node], name=node.name + "_grad_sum")
+        if node == wrt:
+            break
+
+        for child in set(node.children):
+            app = node.graph_df(wrt=child, grad=dct[node])
+            dct[child].append(app)
+
+        val = dct[wrt]
+        if isinstance(val, Add):
+            return val
+        else:
+            return Add(*val, name=wrt.name + "_grad_sum")

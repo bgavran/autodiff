@@ -69,8 +69,8 @@ class TestOneArgOperations(TestCase):
             self.oneop_df_n_times(var_op, tf_op, n=1)
         with self.subTest("2df"):
             self.oneop_df_n_times(var_op, tf_op, n=2)
-        # with self.subTest("3df"):
-        #     self.oneop_df_n_times(var_op, tf_op, n=3)
+        with self.subTest("3df"):
+            self.oneop_df_n_times(var_op, tf_op, n=3)
         # with self.subTest("4df"):
         #     self.oneop_df_n_times(var_op, tf_op, n=4)
 
