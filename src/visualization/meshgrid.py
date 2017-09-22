@@ -5,13 +5,13 @@ from tqdm import tqdm
 
 # Old visualization code:
 
-meshgrids = GraphMeshgrid([x, x], [w, w1], y, test2)
+meshgrids = GraphMeshgrid([x_val, x_val], [w_val, w1_val], y, test2)
 grad = meshgrids.apply_to_function(graph.accumulate_all_gradients_in_list, meshgrids.w_names)
 val = meshgrids.apply_to_function(graph.f)
 
 p = Plotter()
-p.plot_stream(meshgrids.w, grad, meshgrids.w_names)
-p.plot_value(meshgrids.w[0], meshgrids.w[1], val, meshgrids.w_names)
+p.plot_stream(meshgrids.w_val, grad, meshgrids.w_names)
+p.plot_value(meshgrids.w_val[0], meshgrids.w_val[1], val, meshgrids.w_names)
 plt.show(block=True)
 
 
@@ -26,7 +26,7 @@ class GraphMeshgrid:
         # w_var needs to be two dimensional
         self.x_vars = x_vars
         self.w_vars = w_vars
-        self.w_names = ["w0", "w1"]
+        self.w_names = ["w0_val", "w1_val"]
         self.y_var = y
         self.func = func
         self.x_len = len(self.x_vars)  # number (dimension) of input
@@ -64,9 +64,9 @@ class GraphMeshgrid:
     @staticmethod
     def create_meshgrid(lenn, maxx, points, offset):
         """
-        When there is no x in the computational graph...?
-        Why is the offset needed? So the mean of the x inputs is 1, which would, in the case of uniform distribution
-        of x, make it equal as if its not there? As if instead of x*w there's only w?
+        When there is no x_val in the computational graph...?
+        Why is the offset needed? So the mean of the x_val inputs is 1, which would, in the case of uniform distribution
+        of x_val, make it equal as if its not there? As if instead of x_val*w_val there's only w_val?
 
         
         :param lenn: 

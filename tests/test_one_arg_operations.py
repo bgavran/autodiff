@@ -11,25 +11,24 @@ from tests import utils
 class TestOneArgOperations(TestCase):
     def setUp(self):
         np.random.seed(1337)
-        self.w0 = np.random.randn(2, 3)
+        self.w0_val = np.random.randn(2, 3)
 
         self.tf_w0 = tf.placeholder(dtype=tf.float64)
-        self.var_w0 = Variable(name="w0")
+        self.my_w0 = Variable(self.w0_val, name="w0_val")
 
-        self.my_input_dict = {self.var_w0: self.w0}
-        self.tf_input_dict = {self.tf_w0: self.w0}
+        self.tf_input_dict = {self.tf_w0: self.w0_val}
 
     def oneop_f(self, var_op, tf_op):
         tf_graph = tf_op(self.tf_w0)
-        graph = var_op(self.var_w0)
+        graph = var_op(self.my_w0)
 
         with tf.Session():
             tf_val = tf_graph.eval(self.tf_input_dict)
 
-        my_val = graph.eval(self.my_input_dict)
+        my_val = graph.eval()
 
         print("---------- input ----------")
-        print("w0:", self.w0)
+        print("w0_val:", self.w0_val)
         print("---------------------------")
 
         print("---------- f ----------")
@@ -39,10 +38,10 @@ class TestOneArgOperations(TestCase):
         np.testing.assert_allclose(my_val, tf_val)
 
     def oneop_df_n_times(self, var_op, tf_op, n=1):
-        my_var, tf_var = self.var_w0, self.tf_w0
+        my_var, tf_var = self.my_w0, self.tf_w0
 
         tf_graph = tf_op(self.tf_w0)
-        my_graph = var_op(self.var_w0)
+        my_graph = var_op(self.my_w0)
 
         my_graph, tf_graph = utils.differentiate_n_times(my_graph, tf_graph, my_var, tf_var, n=n)
 
@@ -51,14 +50,14 @@ class TestOneArgOperations(TestCase):
                 tf_grads = tf_graph.eval(self.tf_input_dict)
             else:
                 tf_grads = 0
-        my_grads = my_graph.eval(self.my_input_dict)
+        my_grads = my_graph.eval()
 
         print("---------- " + str(n) + "df ----------")
         print("My_val:", my_grads)
         print("Tf_val:", tf_grads)
         print("-------------------------")
-        my_val = my_grads + self.w0
-        tf_val = tf_grads + self.w0
+        my_val = my_grads + self.w0_val
+        tf_val = tf_grads + self.w0_val
         np.testing.assert_allclose(my_val, tf_val)
 
     @timeout_decorator.timeout(1)

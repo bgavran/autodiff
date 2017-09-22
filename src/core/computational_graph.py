@@ -94,7 +94,7 @@ class Node:
         def wrap_all_children(self, children, name):
             for i, child in enumerate(children):
                 if isinstance(child, numbers.Number):
-                    children[i] = Constant(child)
+                    children[i] = Variable(child)
                 if not isinstance(children[i], Node):
                     raise ValueError("Input to op '" + name + "' is a " + str(type(children[i])) + "!!!")
             return init_function(self, children, name)
@@ -190,7 +190,7 @@ class Primitive(Node):
                 return node
         raise ValueError("Node with id", node_id, "doesn't exist!")
 
-    def eval(self, input_dict):
+    def eval(self):
         raise NotImplementedError()
 
     def graph_df(self, wrt, grad):
@@ -219,7 +219,7 @@ class Primitive(Node):
                 child.get_ctx_node(next_to_last=True).add_node_subgraph_to_plot_graph(digraph)
 
 
-class Constant(Primitive):
+class Variable(Primitive):
     def __init__(self, value, name=None):
         assert isinstance(value, np.ndarray) or isinstance(value, numbers.Number)
         if name is None:
@@ -227,29 +227,8 @@ class Constant(Primitive):
         super().__init__([], name)
         self.value = value
 
-    def eval(self, input_dict):
+    def eval(self):
         return self.value
-
-    def graph_df(self, wrt, grad):
-        return 0
-
-
-class Variable(Primitive):
-    def __init__(self, name=""):
-        """
-        Right now, all variables are placeholders?
-        All variables need their values to be fed in.
-        This class needs to be separated into Variables which have their value? Something like a constant?
-
-        :param name:
-        """
-        super().__init__([], name)
-
-    def eval(self, input_dict):
-        try:
-            return input_dict[self]
-        except KeyError:
-            raise KeyError("Must input value for variable: " + str(self))
 
     def graph_df(self, wrt, grad):
         if self == wrt:
@@ -338,8 +317,8 @@ class CompositeOperation(Primitive):
         else:
             Primitive.add_node_subgraph_to_plot_graph(self, digraph)
 
-    def eval(self, input_dict):
-        return self.out.eval(input_dict)
+    def eval(self):
+        return self.out.eval()
 
     # @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -360,20 +339,20 @@ class Add(Primitive):
             name = "0-" + name
         super().__init__(list(elems), name)
 
-    def eval(self, input_dict):
+    def eval(self):
         # Using python sum instead of np.sum because python converts types correctly
-        return sum([elem(input_dict) for elem in self.children])
+        return sum([elem() for elem in self.children])
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
         wrt_count = self.children.count(wrt)
-        return grad * Constant(wrt_count)
+        return grad * Variable(wrt_count)
 
 
 def _initial_grad_wrapper(init_fn):
     def add_init_grad(self, node, wrt, initial_grad=None, name="", graph_expand=True):
         if initial_grad is None:
-            initial_grad = Constant(1, name="init_grad")
+            initial_grad = Variable(1, name="init_grad")
 
         return init_fn(self, node, wrt, initial_grad=initial_grad, name=name, graph_expand=graph_expand)
 
@@ -384,7 +363,7 @@ class Grad(CompositeOperation):
     @_initial_grad_wrapper
     def __init__(self, node, wrt, initial_grad, name="", graph_expand=True):
         super().__init__([node],
-                         name=name + " grad w.r.t. '" + str(wrt) + "'",
+                         name=name + " grad w_val.r.t. '" + str(wrt) + "'",
                          graph_expand=graph_expand)
         self.wrt = wrt
         self.initial_grad = initial_grad
@@ -419,11 +398,8 @@ def checkpoint(fn):
     def wrap_in_primitive(*fn_args):
         op = Primitive(children=fn_args, name=fn.__name__)
 
-        def eval_fn(input_dict):
-            return fn(*fn_args)(input_dict)
-
-        # Grad should also be wrapped in a primitive?
-        # TODO Grad should be just a normal function?
+        def eval_fn():
+            return fn(*fn_args)()
 
         def graph_df_fn(wrt, grad):
             return grad_fn(fn(*fn_args), wrt, grad)
@@ -438,7 +414,11 @@ def checkpoint(fn):
 
 @checkpoint
 def grad_fn(top_node, wrt, initial_grad=None):
-    reverse_sorted_nodes = top_node.reverse_topo_sort()
+    # it should be okay here since grad_fn is not an op? or is it?
+    if initial_grad is None:
+        initial_grad = Variable(1, name="init_grad")
+    with top_node.mark_node_in_graph():
+        reverse_sorted_nodes = top_node.reverse_topo_sort()
 
     dct = collections.defaultdict(list)
     dct[top_node].append(initial_grad)
@@ -452,8 +432,9 @@ def grad_fn(top_node, wrt, initial_grad=None):
             app = node.graph_df(wrt=child, grad=dct[node])
             dct[child].append(app)
 
-        val = dct[wrt]
-        if isinstance(val, Add):
-            return val
-        else:
-            return Add(*val, name=wrt.name + "_grad_sum")
+    val = dct[wrt]
+    if isinstance(val, Add):
+        return val
+    else:
+        return Add(*val, name=wrt.name + "_grad_sum")
+

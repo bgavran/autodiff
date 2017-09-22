@@ -7,8 +7,8 @@ class Identity(Primitive):
         super().__init__([node], name)
         self.node = self.children[0]
 
-    def eval(self, input_dict):
-        return self.node.eval(input_dict)
+    def eval(self):
+        return self.node.eval()
 
     def graph_df(self, wrt, grad):
         if self.node == wrt:
@@ -22,11 +22,11 @@ class Mul(Primitive):
             name = "1-" + name
         super().__init__(list(elems), name)
 
-    def eval(self, input_dict):
+    def eval(self):
         # Using python's functions instead of numpy.prod since prod doesn't do type checking
         prod = 1
         for elem in self.children:
-            prod = np.multiply(prod, elem(input_dict))
+            prod = np.multiply(prod, elem())
         return prod
 
     @CompositeWrapper.from_graph_df
@@ -43,8 +43,8 @@ class Negate(Primitive):
         super().__init__([node], name)
         self.node = node
 
-    def eval(self, input_dict):
-        return -self.node(input_dict)
+    def eval(self):
+        return -self.node()
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -63,8 +63,8 @@ class Recipr(Primitive):
         super().__init__([node], name)
         self.node = self.children[0]
 
-    def eval(self, input_dict):
-        val = self.node(input_dict)
+    def eval(self):
+        val = self.node()
         return 1 / (val + Primitive.epsilon)
 
     @CompositeWrapper.from_graph_df
@@ -79,8 +79,8 @@ class Transpose(Primitive):
         super().__init__([node], name)
         self.node = self.children[0]
 
-    def eval(self, input_dict):
-        return np.transpose(self.node(input_dict))
+    def eval(self):
+        return np.transpose(self.node())
 
     def graph_df(self, wrt, grad):
         if self.node == wrt:
@@ -108,7 +108,7 @@ class EinSum(Primitive):
 
         assert len(self.operands) + 1 == len(self.opnames)
 
-    def eval(self, input_dict):
+    def eval(self):
         """
         Currently the problem is that some of the operands are just a number (like the input gradient)
         and they need to be broadcasted correctly to their shape.
@@ -118,7 +118,7 @@ class EinSum(Primitive):
         But perhaps that means that it shouldn't be possible to know it and that it should always
         be possible to broadcast the result?
         """
-        arr = [op(input_dict) for op in self.operands]
+        arr = [op() for op in self.operands]
         letter_to_dim = {}
         for i, val in enumerate(arr):
             if isinstance(val, np.ndarray):
@@ -140,10 +140,9 @@ class EinSum(Primitive):
     def graph_df(self, wrt, grad):
         """
         Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
-        df w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
+        df w_val.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
         It basically just switches the output with one of the inputs.
 
-        :param my_input_dict:
         :param wrt:
         :param grad:
         :return:
@@ -179,8 +178,8 @@ class ReLU(Primitive):
         super().__init__([node], name)
         self.node = self.children[0]
 
-    def eval(self, input_dict):
-        return self.bigger_than_zero(input_dict) * self.node(input_dict)
+    def eval(self):
+        return self.bigger_than_zero() * self.node()
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -190,8 +189,8 @@ class ReLU(Primitive):
             return grad * self * Recipr(self)
         return 0
 
-    def bigger_than_zero(self, input_dict):
-        return self.node(input_dict) > 0
+    def bigger_than_zero(self):
+        return self.node() > 0
 
 
 class Pow(Primitive):
@@ -200,9 +199,9 @@ class Pow(Primitive):
         self.first = self.children[0]
         self.second = self.children[1]
 
-    def eval(self, input_dict):
-        f = self.first(input_dict)
-        s = self.second(input_dict)
+    def eval(self):
+        f = self.first()
+        s = self.second()
 
         return np.power(f, s)
 
@@ -222,8 +221,8 @@ class Log(Primitive):
         super().__init__([node], name)
         self.node = self.children[0]
 
-    def eval(self, input_dict):
-        return np.log(self.node(input_dict) + Primitive.epsilon)
+    def eval(self):
+        return np.log(self.node() + Primitive.epsilon)
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -237,8 +236,8 @@ class Exp(Primitive):
         super().__init__([node], name)
         self.node = self.children[0]
 
-    def eval(self, input_dict):
-        return np.exp(self.node(input_dict))
+    def eval(self):
+        return np.exp(self.node())
 
     @CompositeWrapper.from_graph_df
     def graph_df(self, wrt, grad):
@@ -295,7 +294,7 @@ class TestRecursivelyComposite(CompositeOperation):
 
     def graph(self):
         node = self.children[0]
-        t = Constant(7, name="t")
+        t = Variable(7, name="t")
 
         if self.count:
             return node * (1 + TestRecursivelyComposite(node,

@@ -57,9 +57,10 @@ class MyDigraph(Digraph):
         if isinstance(node, CompositeOperation):
             return "aquamarine3"
         if isinstance(node, Variable):
+            # better way to figure out the coloring?
+            if isinstance(node.value, numbers.Number) and node.value == 1 and node.name[-4:] == "grad":
+                return "gray"
             return "indianred1"
-        elif isinstance(node, Constant):
-            return "gray"
         else:
             return "lightblue"
 
@@ -67,7 +68,7 @@ class MyDigraph(Digraph):
     def get_shape(node):
         if isinstance(node, CompositeOperation):
             return "doubleoctagon"
-        if isinstance(node, Variable) or isinstance(node, Constant):
+        if isinstance(node, Variable) or isinstance(node, Variable):
             return "box"
         else:
             return "oval"
@@ -105,7 +106,7 @@ class MySubgraphContext:
 
 
 def plot_comp_graph(root_node, view=False, name="comp_graph"):
-    print("Plotting...")
+    print("\nPlotting...")
     graph = MyDigraph("Computational graph", filename=name, engine="dot")
     graph.attr(size="6,6")
     graph.node_attr.update(color='lightblue2', style="filled")
