@@ -29,7 +29,7 @@ class TestEinSum(TestCase):
         with tf.Session():
             tf_val = tf_graph.eval()
 
-        my_val = graph.eval()
+        my_val = graph.f()
 
         np.testing.assert_allclose(my_val, tf_val)
 
@@ -39,7 +39,7 @@ class TestEinSum(TestCase):
         with tf.Session():
             tf_val = tf_graph.eval()
 
-        my_val = graph.eval()
+        my_val = graph.f()
 
         np.testing.assert_allclose(my_val, tf_val)
 

@@ -10,6 +10,7 @@ Those first principles should encompass some of the new ideas in deep learning w
 * Support for higher order gradients
 * Extensible code (it's easy to add your own operations)
 * Visualization of the computational graph
+* Checkpointing
 
 Disclaimer: This is a proof of concept, rather than a usable framework. It's not optimized and you can probably break any of the things above if you try. 
 Foundations are there but I'm still trying understand how [good code](https://xkcd.com/844/) should look.

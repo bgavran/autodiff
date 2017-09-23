@@ -10,10 +10,9 @@ np.random.seed(1337)
 TODO list:
 * Perhaps I should first try making the network work and then see what needs to be done?
 
-* Adding checkpoints
 * Restructuring code (is Grad a class, just a function and how do checkpoints work with it?)
 * If there are N weight variables that need to be updated, how are computational graphs created then?
-* Computational graph graph_expanded doesn't seem to be working when there's two grads in a row? Might 
+* Computational graph expand_graphed doesn't seem to be working when there's two grads in a row? Might 
 get automatically solved when checkpoint and grad_fn gets solved?
 
 """
@@ -25,24 +24,25 @@ def get_data():
     return np.random.randn(2, 3), np.random.randn(3, 5), np.random.randn(5, 7)
 
 
-@CompositeWrapper.from_function
+@composite_wrapper
 def nn(inp, w0):
-    graph = Sigmoid(inp @ w0, graph_expand=False)
+    graph = Sigmoid(inp @ w0, expand_graph=False)
     return graph
 
 
-@CompositeWrapper.from_function
+@composite_wrapper
 def optimizer(var, var_grad):
     alpha = 0.1
     return var - alpha * var_grad
 
 
-@CompositeWrapper.from_function
+@checkpoint
 def step(x1, w0):
-    network = nn(x1, w0, graph_expand=True)
+    print("STEPPPPPPPPPPPPPPPPP")
+    network = nn(x1, w0, expand_graph=True)
 
-    w0_grad = Grad(network, wrt=w0, graph_expand=True)
-    w0 = optimizer(w0, w0_grad, graph_expand=True)
+    w0_grad = Grad(network, wrt=w0, expand_graph=True)
+    w0 = optimizer(w0, w0_grad)
     return w0
 
 
@@ -52,10 +52,11 @@ w0_val = np.random.randn(3, 5)
 x1 = Variable(x1_val, name="x1")
 w0 = Variable(w0_val, name="w0_val")
 
-n_steps = 5
+n_steps = 10
 for i in range(n_steps):
-    print("step", i)
-    print("network sum:", np.sum(nn(x1, w0)()))
-    w0 = step(x1, w0, graph_expand=False)
+    if i % 10 == 0:
+        net_output = nn(x1, w0)()
+        print("step", i, "network sum:", np.sum(net_output))
+    w0 = step(x1, w0)
 
 plot_comp_graph(w0, view=False)
