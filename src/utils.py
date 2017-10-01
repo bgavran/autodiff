@@ -54,7 +54,7 @@ class MyDigraph(Digraph):
 
     @staticmethod
     def get_color(node):
-        if isinstance(node, CompositeOperation):
+        if isinstance(node, Module):
             return "aquamarine3"
         if isinstance(node, Variable):
             # better way to figure out the coloring?
@@ -66,7 +66,7 @@ class MyDigraph(Digraph):
 
     @staticmethod
     def get_shape(node):
-        if isinstance(node, CompositeOperation):
+        if isinstance(node, Module):
             return "doubleoctagon"
         if isinstance(node, Variable) or isinstance(node, Variable):
             return "box"

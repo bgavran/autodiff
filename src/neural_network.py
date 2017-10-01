@@ -1,62 +1,60 @@
 from utils import *
 
+# from keras.datasets import mnist
+
 np.random.seed(1337)
 
-# Difference between a checkpoint and a composite operation?
-# Similar question: difference between eval() and graph() ?
-# There should be some connection?
 
-"""
-TODO list:
-* Perhaps I should first try making the network work and then see what needs to be done?
+# (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
-* Restructuring code (is Grad a class, just a function and how do checkpoints work with it?)
-* If there are N weight variables that need to be updated, how are computational graphs created then?
-* Computational graph expand_graphed doesn't seem to be working when there's two grads in a row? Might 
-get automatically solved when checkpoint and grad_fn gets solved?
+# flatten the data?
+# first fix einsum?
 
-"""
+@checkpoint
+def nn(x, w0):
+    print("steppp")
 
-
-def get_data():
-    # Returns x1, w0_val and w1_val, randomly generated
-    # How should it work exactly?
-    return np.random.randn(2, 3), np.random.randn(3, 5), np.random.randn(5, 7)
-
-
-@composite_wrapper
-def nn(inp, w0):
-    graph = Sigmoid(inp @ w0, expand_graph=False)
+    x_reshaped = ReshapeLike(x, Variable(np.random.randn(28 * 28)))
+    graph = Sigmoid(x_reshaped @ w0, expand_graph=False)
     return graph
 
 
-@composite_wrapper
+@checkpoint
 def optimizer(var, var_grad):
     alpha = 0.1
     return var - alpha * var_grad
 
 
 @checkpoint
-def step(x1, w0):
-    print("STEPPPPPPPPPPPPPPPPP")
-    network = nn(x1, w0, expand_graph=True)
-
-    w0_grad = Grad(network, wrt=w0, expand_graph=True)
-    w0 = optimizer(w0, w0_grad)
-    return w0
+def update_weight(out, w):
+    w_grad = Grad(out, wrt=w, expand_graph=True)
+    return optimizer(w, w_grad)
 
 
-x1_val = np.random.randn(2, 3)
-w0_val = np.random.randn(3, 5)
+def get_data():
+    return np.random.randn(28, 28), np.random.randint(0, 10)
 
-x1 = Variable(x1_val, name="x1")
-w0 = Variable(w0_val, name="w0_val")
 
-n_steps = 10
+w0_val = np.random.randn(28 * 28, 10)
+w1_val = np.random.randn(5, 7)
+
+w0 = Variable(w0_val, name="w0")
+w1 = Variable(w1_val, name="w1")
+
+n_steps = 1000
 for i in range(n_steps):
-    if i % 10 == 0:
-        net_output = nn(x1, w0)()
-        print("step", i, "network sum:", np.sum(net_output))
-    w0 = step(x1, w0)
+    print("step:", i)
 
-plot_comp_graph(w0, view=False)
+    x_val, y_val = get_data()
+    x = Variable(x_val, name="x")
+    y = Variable(y_val, name="y")
+
+    network = nn(x, w0)
+
+    w0_new = update_weight(network, w0)
+    w0.value = w0_new()
+
+    nn_val = network()
+    print("nn_sum:", np.sum(nn_val))
+    print("-----------")
+plot_comp_graph(w0_new, view=False)

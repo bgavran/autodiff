@@ -3,6 +3,7 @@ from unittest import TestCase
 import tensorflow as tf
 
 from core.ops import *
+from tests import utils
 
 
 class TestEinSum(TestCase):
@@ -11,7 +12,7 @@ class TestEinSum(TestCase):
         self.w0_val = np.random.randn(2, 3)
         self.w1_val = np.random.randn(3, 5)
         self.w2_val = np.random.randn(5, 5)
-        self.w3_val = np.random.randn(5, 7)
+        self.w3_val = np.random.randn(2, 3, 5, 7)
 
         self.tf_w0 = tf.constant(self.w0_val)
         self.tf_w1 = tf.constant(self.w1_val)
@@ -23,9 +24,91 @@ class TestEinSum(TestCase):
         self.my_w2 = Variable(self.w2_val, name="w2_val")
         self.my_w3 = Variable(self.w3_val, name="w3_val")
 
+        # TODO figure out what works and what doesn't
+        """
+        Doesn't work: when the right side has less letters than left one. Two possible ways it can happen: 
+        * if we're summing over one of the variables (letters) and thus don't put it on the right side
+        * if one op has an "extra" letter which gets summed over (it might be the same thing as above)
+        
+        Doesn't work: ellipsis
+        
+        Works: normal multiplication of many variables where the w.r.t. variable doesn't have any of its axes summed
+        
+        
+        
+        """
+
+    def custom_einsum_f(self, op_str, my_args, tf_args, my_wrt, tf_wrt):
+        tf_graph = tf.einsum(op_str, *tf_args)
+        my_graph = EinSum(op_str, *my_args)
+
+        with self.subTest("f"):
+            utils.oneop_f(my_graph, tf_graph)
+
+        for i, wrt in enumerate(my_wrt):
+            with self.subTest("df_wrt_" + wrt.name):
+                utils.oneop_df_n_times(self, my_graph, tf_graph, [my_wrt[i], tf_wrt[i]], n=1)
+
+        for i, wrt in enumerate(my_wrt):
+            with self.subTest("2df_wrt_" + wrt.name):
+                utils.oneop_df_n_times(self, my_graph, tf_graph, [my_wrt[i], tf_wrt[i]], n=2)
+
+    def test_onearg_identity(self):
+        my_args = [self.my_w3]
+        tf_args = [self.tf_w3]
+        op_str = "ijkl->ijkl"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
+    def test_onearg_sum1(self):
+        my_args = [self.my_w3]
+        tf_args = [self.tf_w3]
+        op_str = "ijkl->ijk"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
+    def test_onearg_sum2(self):
+        my_args = [self.my_w3]
+        tf_args = [self.tf_w3]
+        op_str = "ijkl->ij"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
+    def test_onearg_sum3(self):
+        my_args = [self.my_w3]
+        tf_args = [self.tf_w3]
+        op_str = "ijkl->i"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
+    def test_onearg_sum4(self):
+        my_args = [self.my_w3]
+        tf_args = [self.tf_w3]
+        op_str = "ijkl->i"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
+    def test_onearg_sum5(self):
+        my_args = [self.my_w3]
+        tf_args = [self.tf_w3]
+        op_str = "ijkl->"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
+    # def test_summation(self):
+    #     my_args = [self.my_w0, self.my_w1]
+    #     tf_args = [self.tf_w0, self.tf_w1]
+    #
+    #     op_str = "dt,tp->d"
+    #     with self.subTest(op_str):
+    #         self.custom_einsum_f(op_str, my_args, tf_args)
+    #
+    #     op_str = "dt,tp->p"
+    #     with self.subTest(op_str):
+    #         self.custom_einsum_f(op_str, my_args, tf_args)
+    #
+    #     op_str = "dt,tp->"
+    #     with self.subTest(op_str):
+    #         self.custom_einsum_f(op_str, my_args, tf_args)
+
     def test_twovars_f(self):
-        tf_graph = tf.einsum("dt,tp->dp", self.tf_w0, self.tf_w1)
-        graph = EinSum("dt,tp->dp", self.my_w0, self.my_w1)
+        op_str = "dt,tp->dp"
+        tf_graph = tf.einsum(op_str, self.tf_w0, self.tf_w1)
+        graph = EinSum(op_str, self.my_w0, self.my_w1)
         with tf.Session():
             tf_val = tf_graph.eval()
 
@@ -34,8 +117,9 @@ class TestEinSum(TestCase):
         np.testing.assert_allclose(my_val, tf_val)
 
     def test_threevars_f(self):
-        tf_graph = tf.einsum("dt,tp,pr->dtp", self.tf_w0, self.tf_w1, self.tf_w2)
-        graph = EinSum("dt,tp,pr->dtp", self.my_w0, self.my_w1, self.my_w2)
+        op_str = "dt,tp,pr->dtp"
+        tf_graph = tf.einsum(op_str, self.tf_w0, self.tf_w1, self.tf_w2)
+        graph = EinSum(op_str, self.my_w0, self.my_w1, self.my_w2)
         with tf.Session():
             tf_val = tf_graph.eval()
 

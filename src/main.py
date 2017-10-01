@@ -1,16 +1,13 @@
 from utils import *
 
-x1 = Variable(7, name="x1")
-w1 = Variable(3, name="w1")
+x_val = np.random.randn(2, 3, 5)
 
-sqrd = SquaredDifference(x1, w1)
+x = Variable(x_val, name="x1")
 
-grad1 = Grad(sqrd, x1)
-grad2 = Grad(grad1, x1)
+es = EinSum("ijk->ij", x)
 
+grad = Grad(es, x)
 
-print("Squared difference:", sqrd())
-print("Gradient with respect to x1:", grad1())
-print("Gradient with respect to x1:", grad2())
+print(x().shape)
+print(grad().shape)
 
-plot_comp_graph(grad2, view=False)

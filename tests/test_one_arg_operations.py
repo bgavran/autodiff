@@ -18,9 +18,9 @@ class TestOneArgOperations(TestCase):
 
         self.tf_input_dict = {self.tf_w0: self.w0_val}
 
-    def oneop_f(self, var_op, tf_op):
-        tf_graph = tf_op(self.tf_w0)
-        graph = var_op(self.my_w0)
+    def oneop_f(self, var_op, tf_op, **kwargs):
+        tf_graph = tf_op(self.tf_w0, **kwargs)
+        graph = var_op(self.my_w0, **kwargs)
 
         with tf.Session():
             tf_val = tf_graph.eval(self.tf_input_dict)
@@ -37,11 +37,11 @@ class TestOneArgOperations(TestCase):
         print("-----------------------")
         np.testing.assert_allclose(my_val, tf_val)
 
-    def oneop_df_n_times(self, var_op, tf_op, n=1):
+    def oneop_df_n_times(self, var_op, tf_op, n=1, **kwargs):
         my_var, tf_var = self.my_w0, self.tf_w0
 
-        tf_graph = tf_op(self.tf_w0)
-        my_graph = var_op(self.my_w0)
+        tf_graph = tf_op(self.tf_w0, **kwargs)
+        my_graph = var_op(self.my_w0, **kwargs)
 
         my_graph, tf_graph = utils.differentiate_n_times(my_graph, tf_graph, my_var, tf_var, n=n)
 
@@ -61,17 +61,20 @@ class TestOneArgOperations(TestCase):
         np.testing.assert_allclose(my_val, tf_val)
 
     @timeout_decorator.timeout(1)
-    def oneop(self, var_op, tf_op):
+    def oneop(self, var_op, tf_op, **kwargs):
         with self.subTest("f"):
-            self.oneop_f(var_op, tf_op)
+            self.oneop_f(var_op, tf_op, **kwargs)
         with self.subTest("df"):
-            self.oneop_df_n_times(var_op, tf_op, n=1)
+            self.oneop_df_n_times(var_op, tf_op, n=1, **kwargs)
         with self.subTest("2df"):
-            self.oneop_df_n_times(var_op, tf_op, n=2)
+            self.oneop_df_n_times(var_op, tf_op, n=2, **kwargs)
         with self.subTest("3df"):
-            self.oneop_df_n_times(var_op, tf_op, n=3)
+            self.oneop_df_n_times(var_op, tf_op, n=3, **kwargs)
         # with self.subTest("4df"):
-        #     self.oneop_df_n_times(var_op, tf_op, n=4)
+        #     self.oneop_df_n_times(var_op, tf_op, n=4, **kwargs)
+
+    # def test_reshape(self):
+    #     self.oneop(ReshapeLike, tf.reshape, shape=(1, 6))
 
     def test_sigmoid(self):
         self.oneop(Sigmoid, tf.nn.sigmoid)

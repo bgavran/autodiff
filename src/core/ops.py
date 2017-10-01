@@ -29,7 +29,7 @@ class Mul(Primitive):
             prod = np.multiply(prod, elem())
         return prod
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         add_list = []
         for loc, child in enumerate(self.children):
@@ -46,7 +46,7 @@ class Negate(Primitive):
     def f(self):
         return -self.node()
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         if self.node == wrt:
             return -grad
@@ -67,7 +67,7 @@ class Recipr(Primitive):
         val = self.node()
         return 1 / (val + Primitive.epsilon)
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         if self.node == wrt:
             return - grad * self * self
@@ -88,7 +88,7 @@ class Transpose(Primitive):
         return 0
 
 
-class MatMul(CompositeOperation):
+class MatMul(Module):
     def __init__(self, a, b, name="MatMul", expand_graph=True):
         super().__init__([a, b], name, expand_graph=expand_graph)
         self.out = self.init_graph()
@@ -100,6 +100,8 @@ class MatMul(CompositeOperation):
 class EinSum(Primitive):
     def __init__(self, op_str, *operands, name="EinSum"):
         super().__init__(list(operands), name)
+        # TODO what if in the inputs there's two same variables?
+        # TODO what if there's ellipsis in the op_str?
         self.op_str = op_str
         self.operands = self.children
 
@@ -136,30 +138,29 @@ class EinSum(Primitive):
 
         return np.einsum(self.op_str, *arr)
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         """
         Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
         df w_val.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
         It basically just switches the output with one of the inputs.
-
-        :param wrt:
-        :param grad:
-        :return:
         """
-        for i, operand in enumerate(self.operands):
-            if operand == wrt:
-                loc = i
-                break
+        # TODO fix summation
+        """
+        Fixing summation requires being able to slice of dimension(s) off a tensor which could then be used to create
+        a tensor of ones which could be added to operation names.
+        So first slicing needs to be implemented?
+        """
         try:
             order = list(range(len(self.opnames)))
+
+            loc = self.operands.index(wrt)
             order[loc], order[-1] = order[-1], order[loc]
 
             # this is concatenation of two lists in np array
-            operands_with_grad = np.array([op for op in self.operands] + [grad])[order]
+            operands_with_grad = np.array(self.operands + [grad])[order]
 
             opnames = self.opnames.copy()
-            # opnames[-1] = self.all_letters
             opnames = EinSum.to_einsum_string(np.array(opnames)[order])
 
             return EinSum(opnames, *operands_with_grad[:-1])
@@ -173,24 +174,52 @@ class EinSum(Primitive):
         return ",".join(list_of_ops[:-1]) + "->" + list_of_ops[-1]
 
 
+class ReshapeLike(Primitive):
+    def __init__(self, node, like_node, name="Reshape"):
+        # TODO need to properly unit test this!
+        super().__init__([node, like_node], name)
+        self.node = self.children[0]
+        self.like_node = self.children[1]
+
+    def f(self):
+        node_val = self.node()
+        like_node_shape = self.like_node().shape
+        if isinstance(node_val, numbers.Number):
+            return np.broadcast_to(node_val, like_node_shape)
+        return np.reshape(node_val, like_node_shape)
+
+    @module_wrapper
+    def graph_df(self, wrt, grad):
+        if self.node == wrt:
+            return ReshapeLike(grad, self.node) * self.node
+        return 0
+
+
 class ReLU(Primitive):
     def __init__(self, node, name="ReLU"):
         super().__init__([node], name)
         self.node = self.children[0]
 
     def f(self):
-        return self.bigger_than_zero() * self.node()
+        val = self.node()
+        return val * (val > 0)
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
-        # TODO higher order gradient doesn't seem to be correct?
-        # probably fixed now, but too slow to check?
         if self.node == wrt:
             return grad * self * Recipr(self)
         return 0
 
-    def bigger_than_zero(self):
-        return self.node() > 0
+
+class Softmax(Module):
+    def __init__(self, node, name="Softmax"):
+        super().__init__([node], name)
+        self.out = self.init_graph()
+
+    def graph(self):
+        node = self.children[0]
+        exp = Exp(node)
+        return exp / EinSum("ij->j", exp)
 
 
 class Pow(Primitive):
@@ -205,7 +234,7 @@ class Pow(Primitive):
 
         return np.power(f, s)
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         if self.first == self.second == wrt:
             return grad * self * (Log(self.first) + 1)
@@ -224,7 +253,7 @@ class Log(Primitive):
     def f(self):
         return np.log(self.node() + Primitive.epsilon)
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         if self.node == wrt:
             return grad * Recipr(self.node)
@@ -239,14 +268,14 @@ class Exp(Primitive):
     def f(self):
         return np.exp(self.node())
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         if self.node == wrt:
             return grad * self
         return 0
 
 
-class Tanh(CompositeOperation):
+class Tanh(Module):
     def __init__(self, node, name="Tanh", expand_graph=False):
         super().__init__([node], name, expand_graph=expand_graph)
         self.out = self.init_graph()
@@ -256,7 +285,7 @@ class Tanh(CompositeOperation):
         return 2 * Sigmoid(2 * node) - 1
 
 
-class Sigmoid(CompositeOperation):
+class Sigmoid(Module):
     def __init__(self, node, name="Sigmoid", expand_graph=False):
         super().__init__([node], name=name, expand_graph=expand_graph)
         self.node = self.children[0]
@@ -265,15 +294,15 @@ class Sigmoid(CompositeOperation):
     def graph(self):
         return 1 / (1 + Exp(-self.node))
 
-    # This is not needed, but is a simplification?
-    @composite_wrapper
+    # This is not needed, but is a simplification of the graph?
+    @module_wrapper
     def graph_df(self, wrt, grad):
         if wrt == self.node:
             return grad * self * (1 - self)
         return 0
 
 
-class SquaredDifference(CompositeOperation):
+class SquaredDifference(Module):
     def __init__(self, first, second, name="Squared_diff", expand_graph=False):
         super().__init__([first, second], name=name, expand_graph=expand_graph)
         self.out = self.init_graph()
@@ -286,7 +315,7 @@ class SquaredDifference(CompositeOperation):
         return diff * diff
 
 
-class TestRecursivelyComposite(CompositeOperation):
+class TestRecursivelyComposite(Module):
     def __init__(self, node, count=1, name="Test_Composite", expand_graph=True):
         super().__init__([node], name=name, expand_graph=expand_graph)
         self.count = count

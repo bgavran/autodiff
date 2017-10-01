@@ -133,7 +133,7 @@ class Node:
             for node in reversed(node.context_list[-1].topo_sort):
                 if node.in_graph:
                     reverse_sorted_nodes.append(node)
-                elif isinstance(node, CompositeOperation) and node.context.has_subnode_in_graph:
+                elif isinstance(node, Module) and node.context.has_subnode_in_graph:
                     ext = rev_ts(node.out)
                     reverse_sorted_nodes.extend(ext)
 
@@ -207,9 +207,6 @@ class Primitive(Node):
     def f(self):
         raise NotImplementedError()
 
-    def graph_df(self, wrt, grad):
-        raise NotImplementedError()
-
     def __call__(self, *args, **kwargs):
         return self.eval()
 
@@ -222,6 +219,9 @@ class Variable(Primitive):
         super().__init__([], name)
         self.value = value
 
+    def eval(self):
+        return self.f()
+
     def f(self):
         return self.value
 
@@ -231,24 +231,24 @@ class Variable(Primitive):
         return 0
 
 
-def composite_wrapper(fn):
-    def wrap_in_composite(*fn_args, name=None, expand_graph=True, **kwargs):
+def module_wrapper(fn):
+    def wrap_in_module(*fn_args, name=None, expand_graph=False, **kwargs):
         if name is None:
             if kwargs.get("wrt", 0) != 0:
                 name = "Gradient graph of " + fn_args[0].name + " "
             else:
                 name = fn.__name__
-        op = CompositeOperation(children=[], name=name, expand_graph=expand_graph)
+        op = Module(children=[], name=name, expand_graph=expand_graph)
 
         op.graph = lambda: fn(*fn_args, **kwargs)
         op.out = op.init_graph()
 
         return op
 
-    return wrap_in_composite
+    return wrap_in_module
 
 
-class CompositeOperation(Primitive):
+class Module(Primitive):
     def __init__(self, children, name="", expand_graph=False):
         super().__init__(children, name)
         self.expand_graph = expand_graph
@@ -260,8 +260,13 @@ class CompositeOperation(Primitive):
             out = self.graph()
         assert out is not None
 
-        # this is needed only for Grad. Can it be a bit cleaner?
-        self.children = out.find_nodes(with_context=False)
+        # self.graph() could be a df of some Primitive and if the wrt variable is not a children, zero is going to be
+        # returned. In that case there's no children. Ideally, a Variable(0), should be returned? Add a wrapper?
+        if out == 0:
+            self.children = []
+        else:
+            # this is needed only for Grad. Can it be a bit cleaner?
+            self.children = out.find_nodes(with_context=False)
 
         return out
 
@@ -291,7 +296,7 @@ class CompositeOperation(Primitive):
     def f(self):
         return self.out()
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         return grad_fn(self.out, wrt=wrt, initial_grad=grad)
 
@@ -309,7 +314,7 @@ def _initial_grad_wrapper(init_fn):
     return add_init_grad
 
 
-class Grad(CompositeOperation):
+class Grad(Module):
     @_initial_grad_wrapper
     def __init__(self, node, wrt, initial_grad, name="", expand_graph=False):
         super().__init__([node],
@@ -345,13 +350,13 @@ class Add(Primitive):
         # Using python sum instead of np.sum because python converts types correctly
         return sum([elem() for elem in self.children])
 
-    @composite_wrapper
+    @module_wrapper
     def graph_df(self, wrt, grad):
         wrt_count = self.children.count(wrt)
         return grad * Variable(wrt_count)
 
 
-# @composite_wrapper
+# @module_wrapper
 def grad_fn(top_node, wrt, initial_grad=Variable(1, name="init_grad")):
     dct = collections.defaultdict(list)
     dct[top_node].append(initial_grad)

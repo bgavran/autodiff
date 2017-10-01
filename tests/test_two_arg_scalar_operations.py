@@ -13,13 +13,11 @@ class TestTwoArgScalarOperations(TestCase):
         self.w0_val = np.random.rand()
         self.w1_val = np.random.rand()
 
-        self.tf_w0 = tf.placeholder(dtype=tf.float64)
-        self.tf_w1 = tf.placeholder(dtype=tf.float64)
+        self.tf_w0 = tf.constant(self.w0_val)
+        self.tf_w1 = tf.constant(self.w1_val)
 
         self.my_w0 = Variable(self.w0_val, name="w0_val")
         self.my_w1 = Variable(self.w1_val, name="w1_val")
-
-        self.tf_input_dict = {self.tf_w0: self.w0_val, self.tf_w1: self.w1_val}
 
     def oneop_df_n_times(self, my_op, tf_op, wrt_vars, n=1):
         my_var, tf_var = wrt_vars
@@ -31,7 +29,7 @@ class TestTwoArgScalarOperations(TestCase):
 
         with tf.Session():
             if tf_graph is not None:
-                tf_grads = tf_graph.eval(feed_dict=self.tf_input_dict)
+                tf_grads = tf_graph.eval()
             else:
                 tf_grads = 0
         my_grads = my_graph.eval()
