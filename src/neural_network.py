@@ -14,7 +14,7 @@ np.random.seed(1337)
 def nn(x, w0):
     print("steppp")
 
-    x_reshaped = ReshapeLike(x, Variable(np.random.randn(28 * 28)))
+    x_reshaped = Reshape(x, Variable(np.random.randn(28 * 28)))
     graph = Sigmoid(x_reshaped @ w0, expand_graph=False)
     return graph
 

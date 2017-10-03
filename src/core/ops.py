@@ -94,12 +94,12 @@ class MatMul(Module):
         self.out = self.init_graph()
 
     def graph(self):
-        return EinSum("ij,jk->ik", self.children[0], self.children[1])
+        return Einsum("ij,jk->ik", self.children[0], self.children[1])
 
 
-class EinSum(Primitive):
+class Einsum(Primitive):
     def __init__(self, op_str, *operands, name="EinSum"):
-        super().__init__(list(operands), name)
+        super().__init__(list(operands), name + " " + op_str)
         # TODO what if in the inputs there's two same variables?
         # TODO what if there's ellipsis in the op_str?
         self.op_str = op_str
@@ -142,7 +142,7 @@ class EinSum(Primitive):
     def graph_df(self, wrt, grad):
         """
         Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
-        df w_val.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
+        Gradient w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
         It basically just switches the output with one of the inputs.
         """
         # TODO fix summation
@@ -150,6 +150,7 @@ class EinSum(Primitive):
         Fixing summation requires being able to slice of dimension(s) off a tensor which could then be used to create
         a tensor of ones which could be added to operation names.
         So first slicing needs to be implemented?
+        Do we really need to slice that dimension or is it possible to just get tensor's shape?
         """
         try:
             order = list(range(len(self.opnames)))
@@ -158,12 +159,24 @@ class EinSum(Primitive):
             order[loc], order[-1] = order[-1], order[loc]
 
             # this is concatenation of two lists in np array
-            operands_with_grad = np.array(self.operands + [grad])[order]
+            operands_with_grad = list(np.array(self.operands + [grad])[order])
 
-            opnames = self.opnames.copy()
-            opnames = EinSum.to_einsum_string(np.array(opnames)[order])
+            opnames = list(np.array(self.opnames)[order])
 
-            return EinSum(opnames, *operands_with_grad[:-1])
+            # add explicit Variables for implicitly summed out tensors
+            from core.reshape import Shape
+            wrt_shape = Shape(wrt)
+            for i, letter in enumerate(self.opnames[loc]):
+                if letter not in "".join(opnames[:-1]):
+                    opnames.insert(0, letter)
+
+                    dim = wrt_shape[i]
+                    # we're running here dim()!!! that shouldn't be done?
+                    var_to_insert = Variable(np.ones(dim()))
+                    operands_with_grad.insert(0, var_to_insert)
+            op_str = Einsum.to_einsum_string(opnames)
+
+            return Einsum(op_str, *operands_with_grad[:-1])
 
         except NameError:
             print("wrt == ", wrt.name)
@@ -172,27 +185,6 @@ class EinSum(Primitive):
     @staticmethod
     def to_einsum_string(list_of_ops):
         return ",".join(list_of_ops[:-1]) + "->" + list_of_ops[-1]
-
-
-class ReshapeLike(Primitive):
-    def __init__(self, node, like_node, name="Reshape"):
-        # TODO need to properly unit test this!
-        super().__init__([node, like_node], name)
-        self.node = self.children[0]
-        self.like_node = self.children[1]
-
-    def f(self):
-        node_val = self.node()
-        like_node_shape = self.like_node().shape
-        if isinstance(node_val, numbers.Number):
-            return np.broadcast_to(node_val, like_node_shape)
-        return np.reshape(node_val, like_node_shape)
-
-    @module_wrapper
-    def graph_df(self, wrt, grad):
-        if self.node == wrt:
-            return ReshapeLike(grad, self.node) * self.node
-        return 0
 
 
 class ReLU(Primitive):
@@ -211,15 +203,52 @@ class ReLU(Primitive):
         return 0
 
 
+class Equal(Primitive):
+    def __init__(self, first, second, name="Equal"):
+        super().__init__([first, second], name)
+        self.first, self.second = self.children
+
+    def f(self):
+        return np.equal(self.first(), self.second())
+
+    def graph_df(self, wrt, grad):
+        # is this correct?
+        return 0
+
+
 class Softmax(Module):
-    def __init__(self, node, name="Softmax"):
-        super().__init__([node], name)
+    """
+    Softmax is a vector function: R^n -> R^n and taking its partial derivative is a bit tricky?
+    We have a jacobian instead of a gradient?
+    Interesting property, softmax is not invariant to scaling?
+
+    """
+
+    def __init__(self, node, ind, name="Softmax", expand_graph=True):
+        super().__init__([node], name, expand_graph=expand_graph)
+        self.node = self.children[0]
+        self.ind = ind  # index of the element whose Softmax we want to compute
         self.out = self.init_graph()
 
     def graph(self):
-        node = self.children[0]
-        exp = Exp(node)
-        return exp / EinSum("ij->j", exp)
+        exp_ind = Exp(self.node[self.ind])
+        exp_all = Exp(self.node)
+        return exp_ind / Einsum("j->", exp_all)
+
+    @module_wrapper
+    def graph_df(self, wrt, grad):
+        # gradient depends on every ind in self.node() ?
+        if wrt == self.node:
+            arr = []
+            for dim in range(self.node().shape[-1]):
+                if dim == self.ind:
+                    val = self * (1 - self)
+                else:
+                    val = - self * Softmax(self.node, dim)
+                arr.append(val)
+            arr = np.array([op() for op in arr])
+            return grad * Variable(arr)
+        return 0
 
 
 class Pow(Primitive):
@@ -285,16 +314,14 @@ class Tanh(Module):
         return 2 * Sigmoid(2 * node) - 1
 
 
-class Sigmoid(Module):
-    def __init__(self, node, name="Sigmoid", expand_graph=False):
-        super().__init__([node], name=name, expand_graph=expand_graph)
+class Sigmoid(Primitive):
+    def __init__(self, node, name="Sigmoid"):
+        super().__init__([node], name=name)
         self.node = self.children[0]
-        self.out = self.init_graph()
 
-    def graph(self):
-        return 1 / (1 + Exp(-self.node))
+    def f(self):
+        return 1 / (1 + np.exp(-self.node()))
 
-    # This is not needed, but is a simplification of the graph?
     @module_wrapper
     def graph_df(self, wrt, grad):
         if wrt == self.node:

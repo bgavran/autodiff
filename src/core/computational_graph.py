@@ -32,7 +32,7 @@ def _constant_wrapper(init_function):
                 if isinstance(child, numbers.Number):
                     children[i] = Variable(child)
                 else:
-                    raise ValueError("Input to op '" + name + "' is a " + str(type(children[i])) + "!!!")
+                    raise ValueError("Input to op '" + name + "' is a " + str(type(child)) + "!!!")
         return init_function(self, children, name)
 
     return wrap_all_children
@@ -147,29 +147,20 @@ class Node:
         for child in set(self.children):
             yield from child
 
-    def find_nodes(self, with_context=True):
+    def find_nodes(self):
         """
         Recursively traces back throughout the children of nodes (starting from this one).
-        The elements of the list depend on with_context variable.
-        If with_context=True:
-            returns nodes with the same context_list
-        else:
-            returns just the top nodes that have different context_list (not their children)
-
-        :return: a list of nodes
+        :return: Returns the list of just the top nodes that have different context_list (not their children)
         """
         # TODO what's the complexity of this?
 
         ll = []
-        if with_context:
-            ll.append(self)
 
         for child in self.children:
             if child.context_list == self.context_list:
-                ll.extend(child.find_nodes(with_context))
+                ll.extend(child.find_nodes())
             else:
-                if not with_context:
-                    ll.append(child)
+                ll.append(child)
         return list(set(ll))
 
     def get_ctx_node(self):
@@ -191,6 +182,10 @@ class Node:
                 # If the child is part of a CompOp which is not expanded, add the CompOp to subgraph
                 child.get_ctx_node().add_node_subgraph_to_plot_graph(digraph)
 
+    def __getitem__(self, item):
+        from core.reshape import Slice
+        return Slice(self, item)
+
 
 class Primitive(Node):
     epsilon = 1e-12
@@ -198,6 +193,9 @@ class Primitive(Node):
     def __init__(self, children, name=""):
         super().__init__(children, name)
         self.cached = None
+
+    def __call__(self, *args, **kwargs):
+        return self.eval()
 
     def eval(self):
         if self.cached is None:
@@ -207,8 +205,9 @@ class Primitive(Node):
     def f(self):
         raise NotImplementedError()
 
-    def __call__(self, *args, **kwargs):
-        return self.eval()
+    # this corresponds to partial derivative?
+    def graph_df(self, wrt, grad):
+        raise NotImplementedError()
 
 
 class Variable(Primitive):
@@ -232,7 +231,7 @@ class Variable(Primitive):
 
 
 def module_wrapper(fn):
-    def wrap_in_module(*fn_args, name=None, expand_graph=False, **kwargs):
+    def wrap_in_module(*fn_args, name=None, expand_graph=True, **kwargs):
         if name is None:
             if kwargs.get("wrt", 0) != 0:
                 name = "Gradient graph of " + fn_args[0].name + " "
@@ -266,7 +265,7 @@ class Module(Primitive):
             self.children = []
         else:
             # this is needed only for Grad. Can it be a bit cleaner?
-            self.children = out.find_nodes(with_context=False)
+            self.children = out.find_nodes()
 
         return out
 

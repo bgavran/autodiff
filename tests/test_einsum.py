@@ -33,25 +33,13 @@ class TestEinSum(TestCase):
         Doesn't work: ellipsis
         
         Works: normal multiplication of many variables where the w.r.t. variable doesn't have any of its axes summed
-        
-        
-        
         """
 
     def custom_einsum_f(self, op_str, my_args, tf_args, my_wrt, tf_wrt):
         tf_graph = tf.einsum(op_str, *tf_args)
-        my_graph = EinSum(op_str, *my_args)
+        my_graph = Einsum(op_str, *my_args)
 
-        with self.subTest("f"):
-            utils.oneop_f(my_graph, tf_graph)
-
-        for i, wrt in enumerate(my_wrt):
-            with self.subTest("df_wrt_" + wrt.name):
-                utils.oneop_df_n_times(self, my_graph, tf_graph, [my_wrt[i], tf_wrt[i]], n=1)
-
-        for i, wrt in enumerate(my_wrt):
-            with self.subTest("2df_wrt_" + wrt.name):
-                utils.oneop_df_n_times(self, my_graph, tf_graph, [my_wrt[i], tf_wrt[i]], n=2)
+        utils.test_one_op(self, my_graph, tf_graph, my_wrt, tf_wrt)
 
     def test_onearg_identity(self):
         my_args = [self.my_w3]
@@ -89,6 +77,18 @@ class TestEinSum(TestCase):
         op_str = "ijkl->"
         self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
 
+    def test_twovars_f(self):
+        my_args = [self.my_w0, self.my_w1]
+        tf_args = [self.tf_w0, self.tf_w1]
+        op_str = "dt,tp->dp"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
+    def test_threevars_f(self):
+        my_args = [self.my_w0, self.my_w1, self.my_w2]
+        tf_args = [self.tf_w0, self.tf_w1, self.tf_w2]
+        op_str = "dt,tp,pr->dtp"
+        self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
+
     # def test_summation(self):
     #     my_args = [self.my_w0, self.my_w1]
     #     tf_args = [self.tf_w0, self.tf_w1]
@@ -105,37 +105,16 @@ class TestEinSum(TestCase):
     #     with self.subTest(op_str):
     #         self.custom_einsum_f(op_str, my_args, tf_args)
 
-    def test_twovars_f(self):
-        op_str = "dt,tp->dp"
-        tf_graph = tf.einsum(op_str, self.tf_w0, self.tf_w1)
-        graph = EinSum(op_str, self.my_w0, self.my_w1)
-        with tf.Session():
-            tf_val = tf_graph.eval()
-
-        my_val = graph.f()
-
-        np.testing.assert_allclose(my_val, tf_val)
-
-    def test_threevars_f(self):
-        op_str = "dt,tp,pr->dtp"
-        tf_graph = tf.einsum(op_str, self.tf_w0, self.tf_w1, self.tf_w2)
-        graph = EinSum(op_str, self.my_w0, self.my_w1, self.my_w2)
-        with tf.Session():
-            tf_val = tf_graph.eval()
-
-        my_val = graph.f()
-
-        np.testing.assert_allclose(my_val, tf_val)
 
         # def test_threevars_df_third(self):
         #     tf_graph = tf.einsum("dt,tp,pr->dtp", self.tf_w0, self.tf_w1, self.tf_w2)
-        #     graph = EinSum("dt,tp,pr->dtp", self.my_w0, self.my_w1, self.my_w2)
+        #     my_graph = EinSum("dt,tp,pr->dtp", self.my_w0, self.my_w1, self.my_w2)
         #     with tf.Session():
         #         tf_grads = tf.gradients(tf_graph, self.tf_w2)[0].eval()
         #     print(tf_grads)
         #
-        #     graph.compute_derivatives(self.my_input_dict)
-        #     my_grads = graph.accumulate_all_gradients(wrt="w2_val")
+        #     my_graph.compute_derivatives(self.my_input_dict)
+        #     my_grads = my_graph.accumulate_all_gradients(wrt="w2_val")
         #
         #     print(my_grads)
         #     np.testing.assert_allclose(my_grads, tf_grads)

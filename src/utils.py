@@ -1,5 +1,6 @@
 from graphviz import Digraph
 from core.ops import *
+from core.reshape import *
 
 
 class MyDigraph(Digraph):

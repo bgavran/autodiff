@@ -1,9 +1,9 @@
 from unittest import TestCase
-import timeout_decorator
 
 import tensorflow as tf
 
 from core.ops import *
+from core.reshape import *
 
 from tests import utils
 
@@ -12,93 +12,80 @@ class TestOneArgOperations(TestCase):
     def setUp(self):
         np.random.seed(1337)
         self.w0_val = np.random.randn(2, 3)
+        self.w1_val = np.random.rand(7)
 
-        self.tf_w0 = tf.placeholder(dtype=tf.float64)
+        self.tf_w0 = tf.constant(self.w0_val)
+        self.tf_w1 = tf.constant(self.w1_val)
+
         self.my_w0 = Variable(self.w0_val, name="w0_val")
+        self.my_w1 = Variable(self.w1_val, name="w0_val")
 
-        self.tf_input_dict = {self.tf_w0: self.w0_val}
+        self.n_times = 3
 
-    def oneop_f(self, var_op, tf_op, **kwargs):
-        tf_graph = tf_op(self.tf_w0, **kwargs)
-        graph = var_op(self.my_w0, **kwargs)
+    def test_softmax(self):
+        ind = 2
+        my_graph = Softmax(self.my_w1, ind)
+        tf_graph = tf.nn.softmax(self.tf_w1)[ind]
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w1], [self.tf_w1], n=self.n_times)
 
-        with tf.Session():
-            tf_val = tf_graph.eval(self.tf_input_dict)
+    def test_reshape(self):
+        my_graph = Reshape(self.my_w0, Shape(from_tuple=(1, 6)))
+        tf_graph = tf.reshape(self.tf_w0, (1, 6))
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
-        my_val = graph.eval()
+    def test_pad(self):
+        pad_val = [[1, 0], [2, 2]]
+        constant_values = [0, 0]
+        my_graph = Pad(self.my_w0, pad_val, constant_values=constant_values)
+        tf_graph = tf.pad(self.tf_w0, pad_val, constant_values=constant_values[0])
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
-        print("---------- input ----------")
-        print("w0_val:", self.w0_val)
-        print("---------------------------")
-
-        print("---------- f ----------")
-        print("My_val:", my_val)
-        print("Tf_val:", tf_val)
-        print("-----------------------")
-        np.testing.assert_allclose(my_val, tf_val)
-
-    def oneop_df_n_times(self, var_op, tf_op, n=1, **kwargs):
-        my_var, tf_var = self.my_w0, self.tf_w0
-
-        tf_graph = tf_op(self.tf_w0, **kwargs)
-        my_graph = var_op(self.my_w0, **kwargs)
-
-        my_graph, tf_graph = utils.differentiate_n_times(my_graph, tf_graph, my_var, tf_var, n=n)
-
-        with tf.Session():
-            if tf_graph is not None:
-                tf_grads = tf_graph.eval(self.tf_input_dict)
-            else:
-                tf_grads = 0
-        my_grads = my_graph.eval()
-
-        print("---------- " + str(n) + "df ----------")
-        print("My_val:", my_grads)
-        print("Tf_val:", tf_grads)
-        print("-------------------------")
-        my_val = my_grads + self.w0_val
-        tf_val = tf_grads + self.w0_val
-        np.testing.assert_allclose(my_val, tf_val)
-
-    @timeout_decorator.timeout(1)
-    def oneop(self, var_op, tf_op, **kwargs):
-        with self.subTest("f"):
-            self.oneop_f(var_op, tf_op, **kwargs)
-        with self.subTest("df"):
-            self.oneop_df_n_times(var_op, tf_op, n=1, **kwargs)
-        with self.subTest("2df"):
-            self.oneop_df_n_times(var_op, tf_op, n=2, **kwargs)
-        with self.subTest("3df"):
-            self.oneop_df_n_times(var_op, tf_op, n=3, **kwargs)
-        # with self.subTest("4df"):
-        #     self.oneop_df_n_times(var_op, tf_op, n=4, **kwargs)
-
-    # def test_reshape(self):
-    #     self.oneop(ReshapeLike, tf.reshape, shape=(1, 6))
+    def test_slice1(self):
+        my_graph = self.my_w0[:, :-1]
+        tf_graph = self.tf_w0[:, :-1]
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_sigmoid(self):
-        self.oneop(Sigmoid, tf.nn.sigmoid)
+        my_graph = Sigmoid(self.my_w0)
+        tf_graph = tf.nn.sigmoid(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_relu(self):
-        self.oneop(ReLU, tf.nn.relu)
+        my_graph = ReLU(self.my_w0)
+        tf_graph = tf.nn.relu(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_transpose(self):
-        self.oneop(Transpose, tf.transpose)
+        my_graph = Transpose(self.my_w0)
+        tf_graph = tf.transpose(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_recipr(self):
-        self.oneop(Recipr, tf.reciprocal)
+        my_graph = Recipr(self.my_w0)
+        tf_graph = tf.reciprocal(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_negate(self):
-        self.oneop(Negate, tf.negative)
+        my_graph = Negate(self.my_w0)
+        tf_graph = tf.negative(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_log(self):
-        self.oneop(Log, tf.log)
+        my_graph = Log(self.my_w0)
+        tf_graph = tf.log(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_exp(self):
-        self.oneop(Exp, tf.exp)
+        my_graph = Exp(self.my_w0)
+        tf_graph = tf.exp(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_identity(self):
-        self.oneop(Identity, tf.identity)
+        my_graph = Identity(self.my_w0)
+        tf_graph = tf.identity(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)
 
     def test_tanh(self):
-        self.oneop(Tanh, tf.tanh)
+        my_graph = Tanh(self.my_w0)
+        tf_graph = tf.tanh(self.tf_w0)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0], [self.tf_w0], n=self.n_times)

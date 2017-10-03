@@ -1,13 +1,19 @@
 from utils import *
 
-x_val = np.random.randn(2, 3, 5)
+np.random.seed(1337)
 
-x = Variable(x_val, name="x1")
+x_val = np.random.rand(7)
+x = Variable(x_val, name="x")
 
-es = EinSum("ijk->ij", x)
+graph = Softmax(x, 2)
+print(x())
+print(graph())
 
-grad = Grad(es, x)
+graph = Grad(graph, x)
 
-print(x().shape)
-print(grad().shape)
+print(graph())
 
+# graph = Grad(graph, x, expand_graph=True)
+# print(graph())
+
+plot_comp_graph(graph, view=False)
