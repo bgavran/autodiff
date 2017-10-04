@@ -29,6 +29,7 @@ class TestEinSum(TestCase):
         Doesn't work: when the right side has less letters than left one. Two possible ways it can happen: 
         * if we're summing over one of the variables (letters) and thus don't put it on the right side
         * if one op has an "extra" letter which gets summed over (it might be the same thing as above)
+        # Update: the above should be fixed? Need to thoroughly check this
         
         Doesn't work: ellipsis
         

@@ -10,6 +10,10 @@ from tests import utils
 
 class TestOneArgOperations(TestCase):
     def setUp(self):
+        """
+        Just basic testing, needs to be properly expanded
+
+        """
         np.random.seed(1337)
         self.w0_val = np.random.randn(2, 3)
         self.w1_val = np.random.rand(7)
@@ -23,9 +27,8 @@ class TestOneArgOperations(TestCase):
         self.n_times = 3
 
     def test_softmax(self):
-        ind = 2
-        my_graph = Softmax(self.my_w1, ind)
-        tf_graph = tf.nn.softmax(self.tf_w1)[ind]
+        my_graph = Softmax(self.my_w1)
+        tf_graph = tf.nn.softmax(self.tf_w1)
         utils.test_one_op(self, my_graph, tf_graph, [self.my_w1], [self.tf_w1], n=self.n_times)
 
     def test_reshape(self):

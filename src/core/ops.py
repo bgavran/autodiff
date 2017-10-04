@@ -108,7 +108,8 @@ class Einsum(Primitive):
         self.opnames = re.split(",|->", self.op_str)
         self.all_letters = "".join(set("".join(self.opnames[:-1])))
 
-        assert len(self.operands) + 1 == len(self.opnames)
+        if len(self.operands) + 1 != len(self.opnames):
+            raise ValueError("Number of operands doesn't match the einsum string!")
 
     def f(self):
         """
@@ -126,7 +127,9 @@ class Einsum(Primitive):
             if isinstance(val, np.ndarray):
                 shape = val.shape
                 letters = self.opnames[i]
-                assert len(shape) == len(letters)
+                if len(shape) != len(letters) and "..." not in letters:  # ellipsis check needs to be solved properly!
+                    raise ValueError("Dimension of operand " + str(i + 1) + " doesn't match the string! " +
+                                     "Shape: " + str(shape) + " , string: '" + letters + "'")
                 for letter, dim in zip(letters, shape):
                     letter_to_dim[letter] = dim
 
@@ -165,14 +168,14 @@ class Einsum(Primitive):
 
             # add explicit Variables for implicitly summed out tensors
             from core.reshape import Shape
-            wrt_shape = Shape(wrt)
+
+            wrt_shape = Shape(wrt)()
             for i, letter in enumerate(self.opnames[loc]):
                 if letter not in "".join(opnames[:-1]):
                     opnames.insert(0, letter)
 
                     dim = wrt_shape[i]
-                    # we're running here dim()!!! that shouldn't be done?
-                    var_to_insert = Variable(np.ones(dim()))
+                    var_to_insert = Variable(np.ones(dim))
                     operands_with_grad.insert(0, var_to_insert)
             op_str = Einsum.to_einsum_string(opnames)
 
@@ -203,51 +206,35 @@ class ReLU(Primitive):
         return 0
 
 
-class Equal(Primitive):
-    def __init__(self, first, second, name="Equal"):
-        super().__init__([first, second], name)
-        self.first, self.second = self.children
-
-    def f(self):
-        return np.equal(self.first(), self.second())
-
-    def graph_df(self, wrt, grad):
-        # is this correct?
-        return 0
-
-
 class Softmax(Module):
     """
-    Softmax is a vector function: R^n -> R^n and taking its partial derivative is a bit tricky?
-    We have a jacobian instead of a gradient?
-    Interesting property, softmax is not invariant to scaling?
+    Softmax is a vector function: R^n -> R^n and taking its partial derivative w.r.t. is a jacobian.
+    But we sum the jacobian along the output axis?
 
     """
 
-    def __init__(self, node, ind, name="Softmax", expand_graph=True):
+    def __init__(self, node, name="Softmax", expand_graph=True):
         super().__init__([node], name, expand_graph=expand_graph)
         self.node = self.children[0]
-        self.ind = ind  # index of the element whose Softmax we want to compute
         self.out = self.init_graph()
 
     def graph(self):
-        exp_ind = Exp(self.node[self.ind])
-        exp_all = Exp(self.node)
-        return exp_ind / Einsum("j->", exp_all)
+        exp = Exp(self.node)
+        one = Variable(np.array([1]))
+        return exp / Einsum("...j,o->...o", exp, one)
 
     @module_wrapper
     def graph_df(self, wrt, grad):
         # gradient depends on every ind in self.node() ?
         if wrt == self.node:
-            arr = []
-            for dim in range(self.node().shape[-1]):
-                if dim == self.ind:
-                    val = self * (1 - self)
-                else:
-                    val = - self * Softmax(self.node, dim)
-                arr.append(val)
-            arr = np.array([op() for op in arr])
-            return grad * Variable(arr)
+            # matrix of the self outer product
+            outer = Einsum("...i,...j->...ij", self, self)
+
+            ones_diag = Variable(np.eye(self().shape[-1]))
+            # matrix where the only nonzero elements is the softmax on the diagonal
+            kronecker_val = Einsum("...ij,...j->...ij", ones_diag, self)
+
+            return grad * Einsum("...ij->...j", outer - kronecker_val)
         return 0
 
 

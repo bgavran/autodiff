@@ -7,15 +7,15 @@ np.random.seed(1337)
 
 # (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
+
 # flatten the data?
-# first fix einsum?
 
 @checkpoint
 def nn(x, w0):
     print("steppp")
 
-    x_reshaped = Reshape(x, Variable(np.random.randn(28 * 28)))
-    graph = Sigmoid(x_reshaped @ w0, expand_graph=False)
+    x_reshaped = Reshape(x, Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
+    graph = Softmax(x_reshaped @ w0)  # [batch_size, 10]
     return graph
 
 
@@ -32,14 +32,12 @@ def update_weight(out, w):
 
 
 def get_data():
-    return np.random.randn(28, 28), np.random.randint(0, 10)
+    batch_size = 3
+    return np.random.randn(batch_size, 28, 28), np.random.randint(batch_size, 10)
 
 
-w0_val = np.random.randn(28 * 28, 10)
-w1_val = np.random.randn(5, 7)
-
-w0 = Variable(w0_val, name="w0")
-w1 = Variable(w1_val, name="w1")
+w0 = Variable(np.random.randn(28 * 28, 10), name="w0")  # [batch_size, 28, 28]
+w1 = Variable(np.random.randn(5, 7), name="w1")  # [batch_size, 28*28, 10]
 
 n_steps = 1000
 for i in range(n_steps):
