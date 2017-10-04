@@ -2,6 +2,22 @@ import re
 from core.computational_graph import *
 
 
+class Add(Primitive):
+    def __init__(self, *elems, name="Add"):
+        if not elems:
+            name = "0-" + name
+        super().__init__(list(elems), name)
+
+    def f(self):
+        # Using python sum instead of np.sum because python converts types correctly
+        return sum([elem() for elem in self.children])
+
+    @module_wrapper
+    def graph_df(self, wrt, grad):
+        wrt_count = self.children.count(wrt)
+        return grad * Variable(wrt_count)
+
+
 class Identity(Primitive):
     def __init__(self, node, name="Identity"):
         super().__init__([node], name)
@@ -147,43 +163,38 @@ class Einsum(Primitive):
         Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
         Gradient w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
         It basically just switches the output with one of the inputs.
+
+        For tensors that have some of their dimensions implicitly summed, a new tensor of ones is explicitly added
         """
-        # TODO fix summation
-        """
-        Fixing summation requires being able to slice of dimension(s) off a tensor which could then be used to create
-        a tensor of ones which could be added to operation names.
-        So first slicing needs to be implemented?
-        Do we really need to slice that dimension or is it possible to just get tensor's shape?
-        """
-        try:
+        if wrt not in self.operands:
+            return 0
+        elif "..." in self.op_str:
+            raise NotImplementedError("Grad of Einsum that uses ellipsis is not implemented yet!")
+        else:
             order = list(range(len(self.opnames)))
 
             loc = self.operands.index(wrt)
             order[loc], order[-1] = order[-1], order[loc]
 
-            # this is concatenation of two lists in np array
+            # this is concatenation of two lists in np array and then their reorder
             operands_with_grad = list(np.array(self.operands + [grad])[order])
 
             opnames = list(np.array(self.opnames)[order])
 
-            # add explicit Variables for implicitly summed out tensors
+            # we add here explicit Variables for implicitly summed out tensors
             from core.reshape import Shape
 
-            wrt_shape = Shape(wrt)()
+            wrt_shape = Shape(wrt)
             for i, letter in enumerate(self.opnames[loc]):
                 if letter not in "".join(opnames[:-1]):
                     opnames.insert(0, letter)
 
                     dim = wrt_shape[i]
-                    var_to_insert = Variable(np.ones(dim))
+                    var_to_insert = Variable(np.ones(dim()))
                     operands_with_grad.insert(0, var_to_insert)
             op_str = Einsum.to_einsum_string(opnames)
 
             return Einsum(op_str, *operands_with_grad[:-1])
-
-        except NameError:
-            print("wrt == ", wrt.name)
-            return 0
 
     @staticmethod
     def to_einsum_string(list_of_ops):
@@ -225,13 +236,13 @@ class Softmax(Module):
 
     @module_wrapper
     def graph_df(self, wrt, grad):
-        # gradient depends on every ind in self.node() ?
+        # TODO higher order gradients don't work because Einsum grad can't be taken if ellipsis is used!
         if wrt == self.node:
             # matrix of the self outer product
             outer = Einsum("...i,...j->...ij", self, self)
 
             ones_diag = Variable(np.eye(self().shape[-1]))
-            # matrix where the only nonzero elements is the softmax on the diagonal
+            # matrix where the only nonzero elements are the softmax vector on the diagonal
             kronecker_val = Einsum("...ij,...j->...ij", ones_diag, self)
 
             return grad * Einsum("...ij->...j", outer - kronecker_val)

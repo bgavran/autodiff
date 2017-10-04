@@ -27,6 +27,7 @@ class TestOneArgOperations(TestCase):
         self.n_times = 3
 
     def test_softmax(self):
+        # is this a correct test? Should the gradients always be this small?
         my_graph = Softmax(self.my_w1)
         tf_graph = tf.nn.softmax(self.tf_w1)
         utils.test_one_op(self, my_graph, tf_graph, [self.my_w1], [self.tf_w1], n=self.n_times)

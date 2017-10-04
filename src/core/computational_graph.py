@@ -38,7 +38,52 @@ def _constant_wrapper(init_function):
     return wrap_all_children
 
 
+def _initial_grad_wrapper(init_fn):
+    def add_init_grad(self, node, wrt, initial_grad=None, name="", expand_graph=False):
+        if initial_grad is None:
+            initial_grad = Variable(1, name="init_grad")
+
+        return init_fn(self, node, wrt, initial_grad=initial_grad, name=name, expand_graph=expand_graph)
+
+    return add_init_grad
+
+
+def checkpoint(fn):
+    def wrap_in_primitive(*fn_args):
+        op = Primitive(children=fn_args, name=fn.__name__)
+
+        op.f = lambda: fn(*fn_args)()
+        op.graph_df = lambda wrt, grad: grad_fn(fn(*fn_args), wrt, grad)
+
+        return op
+
+    return wrap_in_primitive
+
+
+def module_wrapper(fn):
+    def wrap_in_module(*fn_args, name=None, expand_graph=True, **kwargs):
+        if name is None:
+            if kwargs.get("wrt", 0) != 0:
+                name = "Gradient graph of " + fn_args[0].name + " "
+            else:
+                name = fn.__name__
+
+        op = Module(children=[], name=name, expand_graph=expand_graph)
+
+        op.graph = lambda: fn(*fn_args, **kwargs)
+        op.out = op.init_graph()
+
+        return op
+
+    return wrap_in_module
+
+
 class Node:
+    """
+    this should not be global for Node? The list of previously created nodes needs to be destroyed after we lose their
+    reference
+    """
+
     context_list = []
 
     @_constant_wrapper
@@ -230,23 +275,6 @@ class Variable(Primitive):
         return 0
 
 
-def module_wrapper(fn):
-    def wrap_in_module(*fn_args, name=None, expand_graph=True, **kwargs):
-        if name is None:
-            if kwargs.get("wrt", 0) != 0:
-                name = "Gradient graph of " + fn_args[0].name + " "
-            else:
-                name = fn.__name__
-        op = Module(children=[], name=name, expand_graph=expand_graph)
-
-        op.graph = lambda: fn(*fn_args, **kwargs)
-        op.out = op.init_graph()
-
-        return op
-
-    return wrap_in_module
-
-
 class Module(Primitive):
     def __init__(self, children, name="", expand_graph=False):
         super().__init__(children, name)
@@ -303,16 +331,6 @@ class Module(Primitive):
         raise NotImplementedError()
 
 
-def _initial_grad_wrapper(init_fn):
-    def add_init_grad(self, node, wrt, initial_grad=None, name="", expand_graph=False):
-        if initial_grad is None:
-            initial_grad = Variable(1, name="init_grad")
-
-        return init_fn(self, node, wrt, initial_grad=initial_grad, name=name, expand_graph=expand_graph)
-
-    return add_init_grad
-
-
 class Grad(Module):
     @_initial_grad_wrapper
     def __init__(self, node, wrt, initial_grad, name="", expand_graph=False):
@@ -327,36 +345,8 @@ class Grad(Module):
         return grad_fn(self.children[0], self.wrt, self.initial_grad)
 
 
-def checkpoint(fn):
-    def wrap_in_primitive(*fn_args):
-        op = Primitive(children=fn_args, name=fn.__name__)
-
-        op.f = lambda: fn(*fn_args)()
-        op.graph_df = lambda wrt, grad: grad_fn(fn(*fn_args), wrt, grad)
-
-        return op
-
-    return wrap_in_primitive
-
-
-class Add(Primitive):
-    def __init__(self, *elems, name="Add"):
-        if not elems:
-            name = "0-" + name
-        super().__init__(list(elems), name)
-
-    def f(self):
-        # Using python sum instead of np.sum because python converts types correctly
-        return sum([elem() for elem in self.children])
-
-    @module_wrapper
-    def graph_df(self, wrt, grad):
-        wrt_count = self.children.count(wrt)
-        return grad * Variable(wrt_count)
-
-
-# @module_wrapper
 def grad_fn(top_node, wrt, initial_grad=Variable(1, name="init_grad")):
+    from core.ops import Add
     dct = collections.defaultdict(list)
     dct[top_node].append(initial_grad)
 

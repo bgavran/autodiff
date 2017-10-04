@@ -68,7 +68,7 @@ class Slice(Primitive):
         val = self.node()
         if isinstance(val, numbers.Number):
             return val
-        return self.node()[self.slice_val]
+        return val[self.slice_val]
 
     @module_wrapper
     def graph_df(self, wrt, grad):
