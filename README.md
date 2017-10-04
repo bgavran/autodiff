@@ -4,6 +4,9 @@ This project represents my attempt to understand and implement neural networks f
 
 Those first principles should encompass some of the new ideas in deep learning which challenge some of our assumptions of what neural networks really are.
 
+Neural network training seems to, at the bare minimum, require optimization of composed functions using gradient information.
+Therefore, this project consist of implementation of an automated way to do that: automatic differentiation of arbitrary computational graphs.
+
 ### Current features
 * Dynamic creation of computational graphs
 * Dynamic differentiation of computational graph w.r.t. any variable
@@ -21,22 +24,21 @@ Everything is implemented only in Python 3.6 and numpy and is a heavy Work In Pr
 
 An arbitrary neural network is implemented as a directed acyclic graph (DAG).
 
-In this graph, a node represents an `Operation` and directed edges represent flow of information from one operation to another.
-
-Operation can be any mathematical function at all. 
-Incoming edges to an operation represent its domain and operation's outputs represent its codomain (its output).
+In this graph, a node represents a mathematical operation and directed edges into the node represent arguments of the operation.
 
 Operations are closed under composition.
-In other words, composition of outputs of two operations yields a new Operation.
+In other words, composition of outputs of two nodes yields a new Node.
 
-Composition of operations can be abstracted and the inner operations hidden with the `CompositeOperation` class.
+Node can directly implement its mathematical operation - class `Primitive` - or it can use other, existing nodes - class `Module`.
+Modules allow abstracting compositions of operations as just another operation. Modules also allow arbitrarily deep hierarchical nesting of operations.
 
-`Grad` is a CompositeOperation which takes an operation and returns a new DAG representing the gradient of that operation with respect to the provided variable.
+__The cool part:__
 
-Since Grad is a CompositeOperation, it's gradient can be taken in exactly the same way.
+To get the gradient of some computational graph with respect to some variable, `Grad` module is used. 
+Grad is a *dynamically created Module*: it creates a new DAG based on the input node and the w.r.t. node.
+Since Grad is a Module and Module is inheriting from Node, it is possible to take the gradient of the gradient of a computational graph, and so on.
 
-
-## What are really the first principles? 
+## Side note - what are really the first principles of learning mechanisms? 
 
 These questions are some of my guidelines of deciding how this project should look like.
 
