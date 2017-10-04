@@ -3,7 +3,7 @@ from core.ops import *
 
 np.random.seed(1337)
 
-x_val = np.random.randn(1, 10) * 3
+x_val = np.random.randn(1, 10)
 x = Variable(x_val, name="x")
 
 print(x())
