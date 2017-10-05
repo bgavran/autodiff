@@ -26,8 +26,8 @@ An arbitrary neural network is implemented as a directed acyclic graph (DAG).
 
 In this graph, a node represents a mathematical operation and directed edges into the node represent arguments of the operation.
 
-Operations are closed under composition.
-In other words, composition of outputs of two nodes yields a new Node.
+
+Composition of outputs of two nodes yields a new Node - operations are closed under composition.
 
 Node can directly implement its mathematical operation - class `Primitive` - or it can use other, existing nodes - class `Module`.
 Modules allow abstracting compositions of operations as just another operation. Modules also allow arbitrarily deep hierarchical nesting of operations.
@@ -52,7 +52,7 @@ This is how every backpropgation tutorial presents it, this is how I learned it 
 However, the [Synthetic Gradients paper](https://arxiv.org/abs/1608.05343) seems to challenge that idea.
 
 What they did is they broke the feedback loop of updating the parameters into several smaller feedback loops, some of which __don't have any Gradient operations in them!__ And it still works! 
-Obivously, the gradient information *is* used during the training, but it seems that a functional, efficient update can be performed with just an approximation of the Gradient.
+Obivously, the gradient information *is* used during the training, but it seems that a functional, efficient update can be performed with just an approximation of the gradient.
 
 This means that the core principles outlined above aren't really *core* principles and that there's something else going on.
 
