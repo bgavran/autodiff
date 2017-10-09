@@ -2,6 +2,8 @@ import os
 import numbers
 import collections
 import numpy as np
+import inspect
+import traceback
 from contextlib import contextmanager
 
 
@@ -10,7 +12,26 @@ class Context:
         self.root_node = root_node
         self.inner_id = 0
         self.has_subnode_in_graph = False
-        self.topo_sort = []
+        # root context has a different topo sort?
+        self._topo_sort = []
+
+    @property
+    def topo_sort(self):
+        # pause: analyzing the stack and checking how to access caller's globals() function
+
+        # why is init_grad getting added here?
+        # if we're using the inspec.stack() here, will pycharm debugging work as expected?
+        # ll = sorted([val for val in globals().values() if isinstance(val, Node)], key=lambda node: node.id)
+        # for stack_tuple in inspect.stack():
+        #     print("filename:", stack_tuple[1])
+        # print("Done.")
+
+        return self._topo_sort
+
+    @topo_sort.setter
+    def topo_sort(self, val):
+        self._topo_sort.append(val)
+        # if self.root_node != "":
 
     def add_to_context(self, node):
         self.inner_id += 1
@@ -61,7 +82,7 @@ def checkpoint(fn):
 
 
 def module_wrapper(fn):
-    def wrap_in_module(*fn_args, name=None, expand_graph=True, **kwargs):
+    def wrap_in_module(*fn_args, name=None, expand_graph=False, **kwargs):
         if name is None:
             if kwargs.get("wrt", 0) != 0:
                 name = "Gradient graph of " + fn_args[0].name + " "
@@ -79,11 +100,6 @@ def module_wrapper(fn):
 
 
 class Node:
-    """
-    this should not be global for Node? The list of previously created nodes needs to be destroyed after we lose their
-    reference
-    """
-
     context_list = []
 
     @_constant_wrapper
@@ -104,14 +120,14 @@ class Node:
         return self.name + " " + str(self.id)
 
     def __add__(self, other):
-        from core.ops import Add
+        from automatic_differentiation.src.core.ops import Add
         return Add(self, other)
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __neg__(self):
-        from core.ops import Negate
+        from automatic_differentiation.src.core.ops import Negate
         return Negate(self)
 
     def __sub__(self, other):
@@ -121,29 +137,29 @@ class Node:
         return self.__neg__().__add__(other)
 
     def __mul__(self, other):
-        from core.ops import Mul
+        from automatic_differentiation.src.core.ops import Mul
         return Mul(self, other)
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __matmul__(self, other):
-        from core.ops import MatMul
+        from automatic_differentiation.src.core.ops import MatMul
         return MatMul(self, other)
 
     def __rmatmul__(self, other):
-        from core.ops import MatMul
+        from automatic_differentiation.src.core.ops import MatMul
         return MatMul(other, self)
 
     def __imatmul__(self, other):
         return self.__matmul__(other)
 
     def __truediv__(self, other):
-        from core.ops import Recipr
+        from automatic_differentiation.src.core.ops import Recipr
         return self.__mul__(Recipr(other))
 
     def __rtruediv__(self, other):
-        from core.ops import Recipr
+        from automatic_differentiation.src.core.ops import Recipr
         return Recipr(self).__mul__(other)
 
     def get_node_for_graph(self):
@@ -219,7 +235,10 @@ class Node:
             digraph.add_node_with_context(self, self.context_list)
 
             # Add connections to children
-            for child in self.children:
+            # Should double connections be added? For example, for b = a * a seems like there should be
+            # two connections, but if the child is a Module, there probably shouldn't be two connections?
+            # Because it just means - the op depends on the module?
+            for child in set(self.children):
                 digraph.add_edge(child.get_ctx_node(), self)
 
             # Make each of the children do the same
@@ -230,6 +249,10 @@ class Node:
     def __getitem__(self, item):
         from core.reshape import Slice
         return Slice(self, item)
+
+    def plot_comp_graph(self, view=True, name=None):
+        from automatic_differentiation.src.visualization.graph_visualization import plot_comp_graph
+        plot_comp_graph(self, view=view, name=name)
 
 
 class Primitive(Node):
@@ -346,7 +369,8 @@ class Grad(Module):
 
 
 def grad_fn(top_node, wrt, initial_grad=Variable(1, name="init_grad")):
-    from core.ops import Add
+    # wrt should be a list and a list should be returned?
+    from automatic_differentiation.src.core.ops import Add
     dct = collections.defaultdict(list)
     dct[top_node].append(initial_grad)
 

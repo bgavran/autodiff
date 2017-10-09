@@ -1,38 +1,41 @@
-from visualization.graph_visualization import *
-from core.ops import *
-from core.reshape import *
+import numpy as np
+import automatic_differentiation as ad
 
 from examples.data import get_data
 
 
+@ad.module_wrapper
 def nn(x, w0):
-    x_reshaped = Reshape(x, Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
-    graph = Sigmoid(x_reshaped @ w0)  # [batch_size, 10]
+    x_reshaped = ad.Reshape(x, ad.Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
+    # TODO Add working softmax here!
+    graph = ad.Sigmoid(x_reshaped @ w0)  # [batch_size, 10]
     return graph
 
 
+@ad.module_wrapper
 def loss(nn_output, y):
-    return SquaredDifference(nn_output, y)
+    return ad.SquaredDifference(nn_output, y)
 
 
+@ad.module_wrapper
 def optimizer(w, w_grad):
-    lr = 0.01
+    lr = 0.001
     return w - lr * w_grad
 
 
-w0 = Variable(np.random.randn(28 * 28, 10) * 0.01, name="w0")
+w0 = ad.Variable(np.random.randn(28 * 28, 10) * 0.01, name="w0")
 
 for i in range(1000):
     x_val, y_val = get_data(train=True)
-    x, y = Variable(x_val, name="x"), Variable(y_val, name="y")
+    x, y = ad.Variable(x_val, name="x"), Variable(y_val, name="y")
 
     network = nn(x, w0)
     loss_var = loss(network, y)
 
-    w0_grad = Grad(loss_var, w0)
+    w0_grad = ad.Grad(loss_var, w0)
     new_w0 = optimizer(w0, w0_grad)
 
-    w0 = Variable(new_w0(), name="w0")
+    w0 = ad.Variable(new_w0(), name="w0")
 
     if i % 100 == 0:
         print("Step:", i)
@@ -41,7 +44,7 @@ for i in range(1000):
 
 print("Testing...")
 x, y = get_data(train=False)
-x, y = Variable(x, name="x"), Variable(y, name="y")
+x, y = ad.Variable(x, name="x"), ad.Variable(y, name="y")
 
 test_network = nn(x, w0)
 test_loss = loss(test_network, y)
@@ -52,4 +55,5 @@ print("True y:", true)
 print("Predicted y:", pred)
 print("Last batch accuracy:", np.mean(true == pred))
 print("Loss:", np.sum(test_loss()))
-plot_comp_graph(new_w0, view=False)
+
+new_w0.plot_comp_graph(view=True)

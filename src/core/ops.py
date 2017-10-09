@@ -1,5 +1,7 @@
 import re
-from core.computational_graph import *
+import numpy as np
+import numbers
+from automatic_differentiation.src.core.computational_graph import Node, Primitive, Variable, Module, module_wrapper
 
 
 class Add(Primitive):
@@ -182,7 +184,7 @@ class Einsum(Primitive):
             opnames = list(np.array(self.opnames)[order])
 
             # we add here explicit Variables for implicitly summed out tensors
-            from core.reshape import Shape
+            from automatic_differentiation.src.core.reshape import Shape
 
             wrt_shape = Shape(wrt)
             for i, letter in enumerate(self.opnames[loc]):

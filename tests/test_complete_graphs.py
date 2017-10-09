@@ -1,8 +1,8 @@
 from unittest import TestCase
 
+import numpy as np
 import tensorflow as tf
-
-from core.ops import *
+import automatic_differentiation as ad
 
 from tests import utils
 
@@ -29,11 +29,11 @@ class TestMLP(TestCase):
         self.tf_h = tf.nn.sigmoid(self.tf_x @ self.tf_w1)
         self.tf_o = tf.nn.sigmoid(self.tf_h @ self.tf_w2)
 
-        self.my_x = Variable(self.x_val, name="x_val")
-        self.my_w1 = Variable(self.w1_val, name="w1_val")
-        self.my_w2 = Variable(self.w2_val, name="w2_val")
-        self.var_h = Sigmoid(self.my_x @ self.my_w1)
-        self.var_o = Sigmoid(self.var_h @ self.my_w2)
+        self.my_x = ad.Variable(self.x_val, name="x_val")
+        self.my_w1 = ad.Variable(self.w1_val, name="w1_val")
+        self.my_w2 = ad.Variable(self.w2_val, name="w2_val")
+        self.var_h = ad.Sigmoid(self.my_x @ self.my_w1)
+        self.var_o = ad.Sigmoid(self.var_h @ self.my_w2)
 
         self.my_graph = self.var_o
         self.tf_graph = self.tf_o
@@ -71,10 +71,10 @@ class TestOperation(TestCase):
         self.tf_mul = self.tf_x @ self.tf_w
         self.tf_graph = tf.nn.sigmoid(self.tf_mul)
 
-        self.my_x = Variable(self.x_val, name="x_val")
-        self.my_w = Variable(self.w_val, name="w_val")
+        self.my_x = ad.Variable(self.x_val, name="x_val")
+        self.my_w = ad.Variable(self.w_val, name="w_val")
         self.var_mul = self.my_x @ self.my_w
-        self.my_graph = Sigmoid(self.var_mul)
+        self.my_graph = ad.Sigmoid(self.var_mul)
 
         self.n_times = 3
 

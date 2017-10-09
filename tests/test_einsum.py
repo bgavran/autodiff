@@ -1,8 +1,9 @@
 from unittest import TestCase
 
+import numpy as np
 import tensorflow as tf
+import automatic_differentiation as ad
 
-from core.ops import *
 from tests import utils
 
 
@@ -19,10 +20,10 @@ class TestEinSum(TestCase):
         self.tf_w2 = tf.constant(self.w2_val)
         self.tf_w3 = tf.constant(self.w3_val)
 
-        self.my_w0 = Variable(self.w0_val, name="w0_val")
-        self.my_w1 = Variable(self.w1_val, name="w1_val")
-        self.my_w2 = Variable(self.w2_val, name="w2_val")
-        self.my_w3 = Variable(self.w3_val, name="w3_val")
+        self.my_w0 = ad.Variable(self.w0_val, name="w0_val")
+        self.my_w1 = ad.Variable(self.w1_val, name="w1_val")
+        self.my_w2 = ad.Variable(self.w2_val, name="w2_val")
+        self.my_w3 = ad.Variable(self.w3_val, name="w3_val")
 
         # TODO figure out what works and what doesn't
         """
@@ -38,7 +39,7 @@ class TestEinSum(TestCase):
 
     def custom_einsum_f(self, op_str, my_args, tf_args, my_wrt, tf_wrt):
         tf_graph = tf.einsum(op_str, *tf_args)
-        my_graph = Einsum(op_str, *my_args)
+        my_graph = ad.Einsum(op_str, *my_args)
 
         utils.test_one_op(self, my_graph, tf_graph, my_wrt, tf_wrt)
 

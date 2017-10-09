@@ -1,5 +1,4 @@
-from core.computational_graph import *
-
+from automatic_differentiation.src.core.computational_graph import *
 
 class Shape(Primitive):
     def __init__(self, node=None, from_tuple=None, name="Shape"):

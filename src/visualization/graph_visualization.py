@@ -1,5 +1,6 @@
+import numbers
 from graphviz import Digraph
-from core.ops import *
+from automatic_differentiation.src.core.computational_graph import Variable, Module, Grad
 
 
 class MyDigraph(Digraph):
@@ -75,7 +76,6 @@ class MyDigraph(Digraph):
 
     @staticmethod
     def get_edge_style(node):
-        from core.ops import Grad
         if isinstance(node, Grad):
             return "dashed"
         else:
@@ -113,5 +113,4 @@ def plot_comp_graph(root_node, view=False, name="comp_graph"):
     graph.graph_attr.update(rankdir="BT")
 
     root_node.add_node_subgraph_to_plot_graph(graph)
-
-    graph.render(view=view)
+    graph.render(view=view, cleanup=True)
