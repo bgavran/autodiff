@@ -247,11 +247,13 @@ class Node:
                 child.get_ctx_node().add_node_subgraph_to_plot_graph(digraph)
 
     def __getitem__(self, item):
-        from core.reshape import Slice
+        from automatic_differentiation.src.core.reshape import Slice
         return Slice(self, item)
 
     def plot_comp_graph(self, view=True, name=None):
         from automatic_differentiation.src.visualization.graph_visualization import plot_comp_graph
+        if name is None:
+            name = "comp_graph"
         plot_comp_graph(self, view=view, name=name)
 
 

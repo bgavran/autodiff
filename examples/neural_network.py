@@ -27,7 +27,7 @@ w0 = ad.Variable(np.random.randn(28 * 28, 10) * 0.01, name="w0")
 
 for i in range(1000):
     x_val, y_val = get_data(train=True)
-    x, y = ad.Variable(x_val, name="x"), Variable(y_val, name="y")
+    x, y = ad.Variable(x_val, name="x"), ad.Variable(y_val, name="y")
 
     network = nn(x, w0)
     loss_var = loss(network, y)
