@@ -1,5 +1,6 @@
 from automatic_differentiation.src.core.computational_graph import *
 
+
 class Shape(Primitive):
     def __init__(self, node=None, from_tuple=None, name="Shape"):
         # this seems to complex compared to the rest of the code?
@@ -49,14 +50,15 @@ class Reshape(Primitive):
 # TODO does slicing really work as it should?! Higher order gradients seem wrong?
 
 class Slice(Primitive):
+    # TODO slicing with the double dot operator?
     def __init__(self, node, slice_val, name="Slice"):
         # stop value must be negative and step must be None (constraint of current implementation)
         # cond = lambda slc: (slc.stop is None or slc.stop < 0) and slc.step is None
         # if isinstance(slice_val, tuple) or isinstance(slice_val, list):
-            # for sl in slice_val:
-            #     assert cond(sl)
+        # for sl in slice_val:
+        #     assert cond(sl)
         # else:
-            # assert cond(slice_val)
+        # assert cond(slice_val)
         if name is None:
             name = str(slice_val)
         super().__init__([node], name)

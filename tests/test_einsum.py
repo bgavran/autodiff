@@ -91,21 +91,21 @@ class TestEinSum(TestCase):
         op_str = "dt,tp,pr->dtp"
         self.custom_einsum_f(op_str, my_args, tf_args, my_wrt=my_args, tf_wrt=tf_args)
 
-    # def test_summation(self):
-    #     my_args = [self.my_w0, self.my_w1]
-    #     tf_args = [self.tf_w0, self.tf_w1]
-    #
-    #     op_str = "dt,tp->d"
-    #     with self.subTest(op_str):
-    #         self.custom_einsum_f(op_str, my_args, tf_args)
-    #
-    #     op_str = "dt,tp->p"
-    #     with self.subTest(op_str):
-    #         self.custom_einsum_f(op_str, my_args, tf_args)
-    #
-    #     op_str = "dt,tp->"
-    #     with self.subTest(op_str):
-    #         self.custom_einsum_f(op_str, my_args, tf_args)
+        # def test_summation(self):
+        #     my_args = [self.my_w0, self.my_w1]
+        #     tf_args = [self.tf_w0, self.tf_w1]
+        #
+        #     op_str = "dt,tp->d"
+        #     with self.subTest(op_str):
+        #         self.custom_einsum_f(op_str, my_args, tf_args)
+        #
+        #     op_str = "dt,tp->p"
+        #     with self.subTest(op_str):
+        #         self.custom_einsum_f(op_str, my_args, tf_args)
+        #
+        #     op_str = "dt,tp->"
+        #     with self.subTest(op_str):
+        #         self.custom_einsum_f(op_str, my_args, tf_args)
 
 
         # def test_threevars_df_third(self):

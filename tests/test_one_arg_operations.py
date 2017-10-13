@@ -14,16 +14,27 @@ class TestOneArgOperations(TestCase):
 
         """
         np.random.seed(1337)
-        self.w0_val = np.random.randn(2, 3)
-        self.w1_val = np.random.rand(7)
+        a, b, c = 3, 5, 7
+        self.w0_val = np.random.randn(a, b)
+        self.w1_val = np.random.rand(c)
+        self.w2_val = np.random.randn(a, b)
 
         self.tf_w0 = tf.constant(self.w0_val)
         self.tf_w1 = tf.constant(self.w1_val)
+        self.tf_w2 = tf.constant(self.w2_val)
 
         self.my_w0 = ad.Variable(self.w0_val, name="w0_val")
-        self.my_w1 = ad.Variable(self.w1_val, name="w0_val")
+        self.my_w1 = ad.Variable(self.w1_val, name="w1_val")
+        self.my_w2 = ad.Variable(self.w2_val, name="w2_val")
 
         self.n_times = 3
+
+    def test_softmax_ce_with_logits(self):
+        # this fn is R^n -> R so the input is a vector? or should it just sum across the last axis
+        # but it can be done for batches also? so just the last axis counts?
+        my_graph = ad.SoftmaxCEWithLogits(self.my_w0, self.my_w2)
+        tf_graph = tf.nn.softmax_cross_entropy_with_logits(labels=self.tf_w0, logits=self.tf_w2)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w2], [self.tf_w0, self.tf_w2], n=self.n_times)
 
     def test_softmax(self):
         # is this a correct test? Should the gradients always be this small?

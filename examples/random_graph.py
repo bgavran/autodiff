@@ -3,17 +3,14 @@ import automatic_differentiation as ad
 
 np.random.seed(1337)
 
-x = ad.Variable(7, name="x")
-w = ad.Variable(3, name="w")
+w0_val = np.random.rand(2, 3)
+w1_val = np.random.rand(2, 3)
 
-print(x())
+w0 = ad.Variable(w0_val, name="w")
+w1 = ad.Variable(w1_val, name="w")
 
-graph = 2 * x + w
-print("------------")
+graph = ad.SoftmaxCEWithLogits(labels=w0, logits=w1)
+
 print(graph())
 
-graph = ad.Grad(graph, x, expand_graph=True)
-print("------------")
-print(graph())
-
-ad.plot_comp_graph(graph, view=True)
+graph.plot_comp_graph()

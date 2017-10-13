@@ -192,7 +192,7 @@ class Einsum(Primitive):
                     opnames.insert(0, letter)
 
                     dim = wrt_shape[i]
-                    var_to_insert = Variable(np.ones(dim()))
+                    var_to_insert = Variable(np.ones(dim()), name="np.ones(" + str(dim()) + ")")
                     operands_with_grad.insert(0, var_to_insert)
             op_str = Einsum.to_einsum_string(opnames)
 
@@ -219,22 +219,33 @@ class ReLU(Primitive):
         return 0
 
 
-class Softmax(Module):
+class Softmax(Primitive):
     """
-    Softmax is a vector function: R^n -> R^n and taking its partial derivative w.r.t. is a jacobian.
-    But we sum the jacobian along the output axis?
+    Softmax is a vector function: R^n -> R^n and taking its partial derivative w.r.t. input is a Jacobian matrix.
+    But it can be done for batches also?
 
     """
 
-    def __init__(self, node, name="Softmax", expand_graph=True):
-        super().__init__([node], name, expand_graph=expand_graph)
+    def __init__(self, node, name="Softmax"):
+        super().__init__([node], name)
         self.node = self.children[0]
-        self.out = self.init_graph()
 
-    def graph(self):
-        exp = Exp(self.node)
-        one = Variable(np.array([1]))
-        return exp / Einsum("...j,o->...o", exp, one)
+    def f(self):
+        """
+
+        Subtracting the max of last axis from each element in softmax.
+        Dividing the exp(node) by the sum of exp(node) for all nodes.
+        Thes "one" variable is added so we can use softmax on tensors of arbitrarily high dimensions and sum back their
+        last axis
+
+        """
+        val = self.node()
+        shifted_exp = np.exp(val - np.expand_dims(np.max(val, axis=-1), axis=-1))
+        one = np.array([1])
+
+        # using my Einsum instead of numpy's since mine broadcasts them in a way that works well for autodiff
+        last_axis_sum = Einsum("...j,o->...o", Variable(shifted_exp), Variable(one))()
+        return shifted_exp / last_axis_sum
 
     @module_wrapper
     def graph_df(self, wrt, grad):
@@ -243,11 +254,38 @@ class Softmax(Module):
             # matrix of the self outer product
             outer = Einsum("...i,...j->...ij", self, self)
 
-            ones_diag = Variable(np.eye(self().shape[-1]))
+            val_ones = np.eye(self().shape[-1])
+            ones_diag = Variable(val_ones)
             # matrix where the only nonzero elements are the softmax vector on the diagonal
             kronecker_val = Einsum("...ij,...j->...ij", ones_diag, self)
 
             return grad * Einsum("...ij->...j", outer - kronecker_val)
+        return 0
+
+
+class SoftmaxCEWithLogits(Primitive):
+    def __init__(self, labels, logits, name="SoftmaxCEWithLogits"):
+        super().__init__([labels, logits], name=name)
+        self.labels = labels
+        self.logits = logits
+
+    def f(self):
+        labels_val = self.labels()
+        logits_val = self.logits()
+
+        # calculating a numberically stable logsumpexp by shifting all the values
+        maxx = np.expand_dims(np.max(logits_val, axis=-1), axis=-1)
+        logsumexp = maxx + np.expand_dims(np.log(np.sum(np.exp(logits_val - maxx), axis=-1)), axis=-1)
+
+        s = -np.sum(labels_val * logits_val - labels_val * logsumexp, axis=-1)
+        return s
+
+    @module_wrapper
+    def graph_df(self, wrt, grad):
+        if wrt == self.logits:
+            return Softmax(self.logits) - self.labels
+        elif wrt == self.labels:
+            pass
         return 0
 
 
@@ -342,19 +380,15 @@ class SquaredDifference(Module):
         return diff * diff
 
 
-class TestRecursivelyComposite(Module):
-    def __init__(self, node, count=1, name="Test_Composite", expand_graph=True):
-        super().__init__([node], name=name, expand_graph=expand_graph)
-        self.count = count
-        self.out = self.init_graph()
+class FrobeniusNorm(Primitive):
+    def __init__(self, node, name="Frobenius Norm"):
+        super().__init__([node], name=name)
+        self.node = node
 
-    def graph(self):
-        node = self.children[0]
-        t = Variable(7, name="t")
+    def f(self):
+        node_val = self.node()
+        return np.linalg.norm(np.array(node_val), "fro")
 
-        if self.count:
-            return node * (1 + TestRecursivelyComposite(node,
-                                                        count=self.count - 1,
-                                                        expand_graph=self.expand_graph))
-        else:
-            return SquaredDifference(node, t, expand_graph=True)
+    @module_wrapper
+    def graph_df(self, wrt, grad):
+        raise NotImplementedError("Haven't implemented it yet!")

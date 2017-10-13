@@ -65,20 +65,24 @@ class TestOperation(TestCase):
         np.random.seed(1337)
         self.x_val = np.random.randn(2, 3)
         self.w_val = np.random.randn(3, 5)
+        self.b_val = np.random.randn(1, 5)
 
         self.tf_x = tf.constant(self.x_val, dtype=tf.float64)
         self.tf_w = tf.constant(self.w_val, dtype=tf.float64)
-        self.tf_mul = self.tf_x @ self.tf_w
+        self.tf_b = tf.constant(self.b_val, dtype=tf.float64)
+        self.tf_mul = self.tf_x @ self.tf_w + self.tf_b
         self.tf_graph = tf.nn.sigmoid(self.tf_mul)
 
         self.my_x = ad.Variable(self.x_val, name="x_val")
         self.my_w = ad.Variable(self.w_val, name="w_val")
-        self.var_mul = self.my_x @ self.my_w
+        self.my_b = ad.Variable(self.b_val, name="b_val")
+
+        self.var_mul = self.my_x @ self.my_w + self.my_b
         self.my_graph = ad.Sigmoid(self.var_mul)
 
         self.n_times = 3
 
     def test_all(self):
-        my_vars = [self.my_x, self.my_w, self.var_mul]
-        tf_vars = [self.tf_x, self.tf_w, self.tf_mul]
+        my_vars = [self.my_x, self.my_w, self.my_b, self.var_mul]
+        tf_vars = [self.tf_x, self.tf_w, self.tf_b, self.tf_mul]
         utils.test_one_op(self, self.my_graph, self.tf_graph, my_vars, tf_vars, n=self.n_times)

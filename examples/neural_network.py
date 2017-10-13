@@ -8,7 +8,7 @@ from examples.data import get_data
 def nn(x, w0):
     x_reshaped = ad.Reshape(x, ad.Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
     # TODO Add working softmax here!
-    graph = ad.Sigmoid(x_reshaped @ w0)  # [batch_size, 10]
+    graph = ad.Softmax(x_reshaped @ w0)  # [batch_size, 10]
     return graph
 
 

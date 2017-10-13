@@ -31,7 +31,7 @@ def oneop_df_n_times(test, my_graph, tf_graph, my_var, tf_var, n=1):
         tf_grads = tf_graph.eval()
     my_grads = my_graph.eval()
 
-    print("---------- " + str(n) + "df ----------")
+    print("---------- " + str(n) + "df w.r.t. " + str(my_var) + " ----------")
     print("My_val:", my_grads)
     print("Tf_val:", tf_grads)
     my_val = my_grads + my_var()

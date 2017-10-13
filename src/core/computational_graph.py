@@ -82,7 +82,7 @@ def checkpoint(fn):
 
 
 def module_wrapper(fn):
-    def wrap_in_module(*fn_args, name=None, expand_graph=False, **kwargs):
+    def wrap_in_module(*fn_args, name=None, expand_graph=True, **kwargs):
         if name is None:
             if kwargs.get("wrt", 0) != 0:
                 name = "Gradient graph of " + fn_args[0].name + " "
@@ -358,7 +358,7 @@ class Module(Primitive):
 
 class Grad(Module):
     @_initial_grad_wrapper
-    def __init__(self, node, wrt, initial_grad, name="", expand_graph=False):
+    def __init__(self, node, wrt, initial_grad, name="", expand_graph=True):
         super().__init__([node],
                          name=name + " grad w.r.t. '" + str(wrt) + "'",
                          expand_graph=expand_graph)
@@ -377,12 +377,14 @@ def grad_fn(top_node, wrt, initial_grad=Variable(1, name="init_grad")):
     dct[top_node].append(initial_grad)
 
     for node in top_node.reverse_topo_sort():
-        dct[node] = Add(*dct[node], name=node.name + "_grad_sum")
+        dct[node] = Add(*dct[node], name="'" + node.name + "' grad_sum")
         if node == wrt:
             return dct[wrt]
 
         for child in set(node.children):
+            # einsum over broadcasted axes?
             app = node.graph_df(wrt=child, grad=dct[node])
             dct[child].append(app)
 
+    # can we ever get here?
     return Add(*dct[wrt], name=wrt.name + "_grad_sum")
