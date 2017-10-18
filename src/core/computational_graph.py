@@ -117,7 +117,7 @@ class Node:
         return "/".join([str(ctx) for ctx in self.context_list]) + " " + str(self.id)
 
     def __str__(self):
-        return self.name + " " + str(self.id)
+        return self.name  # + " " + str(self.id)
 
     def __add__(self, other):
         from automatic_differentiation.src.core.ops import Add
@@ -176,6 +176,11 @@ class Node:
 
     @contextmanager
     def mark_node_in_graph(self):
+        # there could be a lot of nodes in the same scope, but only some of those are dependencies. we're marking them
+        # here so they could be processed after
+
+        # this is a context manager which marks nodes, allows you to use them and then always unmarks them after
+
         def mark_node(node, val):
             node.context_list[-1].has_subnode_in_graph = val
             node.in_graph = val
@@ -192,8 +197,10 @@ class Node:
         def rev_ts(node):
             reverse_sorted_nodes = []
             for node in reversed(node.context_list[-1].topo_sort):
+                # if node is part of the graph, add it to the dependency list
                 if node.in_graph:
                     reverse_sorted_nodes.append(node)
+                # if it isn't, but it's a Module and one of its subnodes is a part of the graph, add the Module too
                 elif isinstance(node, Module) and node.context.has_subnode_in_graph:
                     ext = rev_ts(node.out)
                     reverse_sorted_nodes.extend(ext)
