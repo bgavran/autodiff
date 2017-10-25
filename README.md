@@ -1,5 +1,7 @@
 # Automatic differentiation 
 
+![](/assets/higher_order.png)
+
 This project represents my attempt to understand and implement neural networks from first principles.
 
 Those first principles should encompass some of the new ideas in deep learning which challenge some of our assumptions of what neural networks really are.
@@ -11,6 +13,7 @@ Therefore, this project consist of implementation of an automated way to do that
 * Dynamic creation of computational graphs
 * Dynamic differentiation of computational graph w.r.t. any variable
 * Support for higher order gradients
+* Support for higher order tensors
 * Extensible code (it's easy to add your own operations)
 * Visualization of the computational graph
 * Checkpointing
@@ -26,8 +29,7 @@ Everything is implemented only in Python 3.6 and numpy and is a heavy Work In Pr
 
 An arbitrary neural network is implemented as a directed acyclic graph (DAG).
 
-In this graph, a node represents a mathematical operation and directed edges into the node represent arguments of the operation.
-
+In this graph, a node represents some mathematical operation and directed edges into the node represent arguments of the operation.
 
 Composition of outputs of two nodes yields a new Node - operations are closed under composition.
 
@@ -39,6 +41,8 @@ __The cool part:__
 To get the gradient of some computational graph with respect to some variable, `Grad` module is used. 
 Grad is a *dynamically created Module*: it creates a new DAG based on the input node and the w.r.t. node.
 Since Grad is a Module and Module is inheriting from Node, it is possible to take the gradient of the gradient of a computational graph, and so on.
+
+Update: the last commit requires some description in the last two paragraphs to be corrected. For now, `grad` is not a `Module` and the `Module` changed a bit, but everything still works and the code is more elegant.
 
 ## Side note - what are really the first principles of learning mechanisms? 
 
@@ -70,3 +74,7 @@ The last two examples show us how it's possible to actually _learn_ the optimize
 All the questions we've been asking about our ML models can now be asked about the optimizers (and there's a lot of them!).
 
 Obviously, the principle "oh we just take the gradient and change it a bit before adding it to the parameters" is not really a *core* principle after all and there is something much more deeper going on.
+
+---
+
+Visualization idea and inspiration taken from [HIPS autograd](https://github.com/HIPS/autograd).
