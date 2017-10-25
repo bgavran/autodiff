@@ -1,7 +1,9 @@
 import re
 import numpy as np
 import numbers
-from automatic_differentiation.src.core.computational_graph import Node, Primitive, Variable, Module, module_wrapper
+from automatic_differentiation.src.core.computational_graph import Node, Primitive, Variable
+
+from functools import reduce
 
 
 class Add(Primitive):
@@ -14,10 +16,9 @@ class Add(Primitive):
         # Using python sum instead of np.sum because python converts types correctly
         return sum([elem() for elem in self.children])
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         wrt_count = self.children.count(wrt)
-        return grad * Variable(wrt_count)
+        return curr_grad * Variable(wrt_count)
 
 
 class Identity(Primitive):
@@ -28,32 +29,29 @@ class Identity(Primitive):
     def f(self):
         return self.node.f()
 
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return grad * self.node.graph_df(wrt, grad)
+            return curr_grad * self.node.graph_df(wrt, curr_grad)
         return 0
 
 
 class Mul(Primitive):
+    fn = lambda x, y: x * y
+
     def __init__(self, *elems, name="Mul"):
         if not elems:
             name = "1-" + name
         super().__init__(list(elems), name)
 
     def f(self):
-        # Using python's functions instead of numpy.prod since prod doesn't do type checking
-        prod = 1
-        for elem in self.children:
-            prod = np.multiply(prod, elem())
-        return prod
+        return reduce(Mul.fn, [child() for child in self.children], 1)
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         add_list = []
         for loc, child in enumerate(self.children):
             if child == wrt:
                 add_list.append(Mul(*[ch for i, ch in enumerate(self.children) if loc != i]))
-        return grad * Add(*add_list)
+        return curr_grad * Add(*add_list)
 
 
 class Negate(Primitive):
@@ -64,10 +62,9 @@ class Negate(Primitive):
     def f(self):
         return -self.node()
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return -grad
+            return -curr_grad
         else:
             return 0
 
@@ -82,13 +79,11 @@ class Recipr(Primitive):
         self.node = self.children[0]
 
     def f(self):
-        val = self.node()
-        return 1 / (val + Primitive.epsilon)
+        return 1 / (self.node() + Primitive.epsilon)
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return - grad * self * self
+            return - curr_grad * self * self
         return 0
 
 
@@ -100,19 +95,22 @@ class Transpose(Primitive):
     def f(self):
         return np.transpose(self.node())
 
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return Transpose(grad)
+            return Transpose(curr_grad)
         return 0
 
 
-class MatMul(Module):
-    def __init__(self, a, b, name="MatMul", expand_graph=True):
-        super().__init__([a, b], name, expand_graph=expand_graph)
-        self.out = self.init_graph()
+class MatMul(Primitive):  # this is actually a Module
+    def __init__(self, a, b, name="MatMul"):
+        super().__init__([a, b], name)
+        self.op = Einsum("ij,jk->ik", self.children[0], self.children[1])
 
-    def graph(self):
-        return Einsum("ij,jk->ik", self.children[0], self.children[1])
+    def f(self):
+        return self.op()
+
+    def graph_df(self, wrt, curr_grad):
+        return self.op.graph_df(wrt, curr_grad)
 
 
 class Einsum(Primitive):
@@ -159,8 +157,7 @@ class Einsum(Primitive):
 
         return np.einsum(self.op_str, *arr)
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         """
         Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
         Gradient w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
@@ -168,18 +165,19 @@ class Einsum(Primitive):
 
         For tensors that have some of their dimensions implicitly summed, a new tensor of ones is explicitly added
         """
-        if wrt not in self.operands:
-            return 0
-        elif "..." in self.op_str:
+        if "..." in self.op_str:
             raise NotImplementedError("Grad of Einsum that uses ellipsis is not implemented yet!")
         else:
             order = list(range(len(self.opnames)))
 
-            loc = self.operands.index(wrt)
+            try:
+                loc = self.operands.index(wrt)
+            except ValueError:
+                return 0
             order[loc], order[-1] = order[-1], order[loc]
 
             # this is concatenation of two lists in np array and then their reorder
-            operands_with_grad = list(np.array(self.operands + [grad])[order])
+            operands_with_grad = list(np.array(self.operands + [curr_grad])[order])
 
             opnames = list(np.array(self.opnames)[order])
 
@@ -187,12 +185,13 @@ class Einsum(Primitive):
             from automatic_differentiation.src.core.reshape import Shape
 
             wrt_shape = Shape(wrt)
+
             for i, letter in enumerate(self.opnames[loc]):
                 if letter not in "".join(opnames[:-1]):
                     opnames.insert(0, letter)
 
-                    dim = wrt_shape[i]
-                    var_to_insert = Variable(np.ones(dim()), name="np.ones(" + str(dim()) + ")")
+                    dim = wrt_shape[i]()
+                    var_to_insert = Variable(np.ones(dim), name="np.ones(" + str(dim) + ")")
                     operands_with_grad.insert(0, var_to_insert)
             op_str = Einsum.to_einsum_string(opnames)
 
@@ -212,10 +211,9 @@ class ReLU(Primitive):
         val = self.node()
         return val * (val > 0)
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return grad * self * Recipr(self)
+            return curr_grad * self * Recipr(self)
         return 0
 
 
@@ -244,22 +242,21 @@ class Softmax(Primitive):
         one = np.array([1])
 
         # using my Einsum instead of numpy's since mine broadcasts them in a way that works well for autodiff
-        last_axis_sum = Einsum("...j,o->...o", Variable(shifted_exp), Variable(one))()
+        last_axis_sum = Einsum("...j,o->...o", Variable(shifted_exp, name="shifted_exp"), Variable(one, name="1"))()
         return shifted_exp / last_axis_sum
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         # TODO higher order gradients don't work because Einsum grad can't be taken if ellipsis is used!
         if wrt == self.node:
             # matrix of the self outer product
             outer = Einsum("...i,...j->...ij", self, self)
 
             val_ones = np.eye(self().shape[-1])
-            ones_diag = Variable(val_ones)
+            ones_diag = Variable(val_ones, "einsum_ones")
             # matrix where the only nonzero elements are the softmax vector on the diagonal
             kronecker_val = Einsum("...ij,...j->...ij", ones_diag, self)
 
-            return grad * Einsum("...ij->...j", outer - kronecker_val)
+            return curr_grad * Einsum("...ij->...j", outer - kronecker_val)
         return 0
 
 
@@ -280,12 +277,12 @@ class SoftmaxCEWithLogits(Primitive):
         s = -np.sum(labels_val * logits_val - labels_val * logsumexp, axis=-1)
         return s
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if wrt == self.logits:
+            # TODO missing grad here!
             return Softmax(self.logits) - self.labels
         elif wrt == self.labels:
-            pass
+            return Variable(0)
         return 0
 
 
@@ -296,19 +293,15 @@ class Pow(Primitive):
         self.second = self.children[1]
 
     def f(self):
-        f = self.first()
-        s = self.second()
+        return np.power(self.first(), self.second())
 
-        return np.power(f, s)
-
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.first == self.second == wrt:
-            return grad * self * (Log(self.first) + 1)
+            return curr_grad * self * (Log(self.first) + 1)
         elif self.first == wrt:
-            return grad * self.second * Pow(self.first, self.second - 1)
+            return curr_grad * self.second * Pow(self.first, self.second - 1)
         elif self.second == wrt:
-            return grad * Log(self.first) * self
+            return curr_grad * Log(self.first) * self
         return 0
 
 
@@ -320,10 +313,9 @@ class Log(Primitive):
     def f(self):
         return np.log(self.node() + Primitive.epsilon)
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return grad * Recipr(self.node)
+            return curr_grad * Recipr(self.node)
         return 0
 
 
@@ -335,21 +327,10 @@ class Exp(Primitive):
     def f(self):
         return np.exp(self.node())
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return grad * self
+            return curr_grad * self
         return 0
-
-
-class Tanh(Module):
-    def __init__(self, node, name="Tanh", expand_graph=False):
-        super().__init__([node], name, expand_graph=expand_graph)
-        self.out = self.init_graph()
-
-    def graph(self):
-        node = self.children[0]
-        return 2 * Sigmoid(2 * node) - 1
 
 
 class Sigmoid(Primitive):
@@ -360,35 +341,23 @@ class Sigmoid(Primitive):
     def f(self):
         return 1 / (1 + np.exp(-self.node()))
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
+    def graph_df(self, wrt, curr_grad):
         if wrt == self.node:
-            return grad * self * (1 - self)
+            return curr_grad * self * (1 - self)
         return 0
 
 
-class SquaredDifference(Module):
-    def __init__(self, first, second, name="Squared_diff", expand_graph=False):
-        super().__init__([first, second], name=name, expand_graph=expand_graph)
-        self.out = self.init_graph()
-
-    def graph(self):
-        first = self.children[0]
-        second = self.children[1]
-
-        diff = first - second
-        return diff * diff
-
-
 class FrobeniusNorm(Primitive):
-    def __init__(self, node, name="Frobenius Norm"):
-        super().__init__([node], name=name)
-        self.node = node
+    def __init__(self, *nodes, name="Frobenius Norm"):
+        super().__init__(list(nodes), name=name)
+        self.nodes = nodes
 
     def f(self):
-        node_val = self.node()
-        return np.linalg.norm(np.array(node_val), "fro")
+        return np.sqrt(sum([np.sum(np.square(node())) for node in self.nodes]))
 
-    @module_wrapper
-    def graph_df(self, wrt, grad):
-        raise NotImplementedError("Haven't implemented it yet!")
+    def graph_df(self, wrt, curr_grad):
+        try:
+            loc = self.nodes.index(wrt)
+        except ValueError:
+            return 0
+        return self.nodes[loc] / self

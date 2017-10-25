@@ -1,6 +1,6 @@
 import numbers
 from graphviz import Digraph
-from automatic_differentiation.src.core.computational_graph import Variable, Module, Grad
+from automatic_differentiation.src.core.computational_graph import Variable, grad
 
 
 class MyDigraph(Digraph):
@@ -46,8 +46,6 @@ class MyDigraph(Digraph):
             self.add_node(node)
 
     def add_edge(self, child, parent):
-        child = child.get_node_for_graph()
-        parent = parent.get_node_for_graph()
         if child != parent:
             self.edge(child.graph_name(),
                       parent.graph_name(),
@@ -55,8 +53,8 @@ class MyDigraph(Digraph):
 
     @staticmethod
     def get_color(node):
-        if isinstance(node, Module):
-            return "aquamarine3"
+        # if isinstance(node, Module):
+        #     return "aquamarine3"
         if isinstance(node, Variable):
             # better way to figure out the coloring?
             if isinstance(node.value, numbers.Number) and node.value == 1 and node.name[-4:] == "grad":
@@ -67,8 +65,8 @@ class MyDigraph(Digraph):
 
     @staticmethod
     def get_shape(node):
-        if isinstance(node, Module):
-            return "doubleoctagon"
+        # if isinstance(node, Module):
+        #     return "doubleoctagon"
         if isinstance(node, Variable) or isinstance(node, Variable):
             return "box"
         else:
@@ -76,10 +74,7 @@ class MyDigraph(Digraph):
 
     @staticmethod
     def get_edge_style(node):
-        if isinstance(node, Grad):
-            return "dashed"
-        else:
-            return "filled"
+        return "filled"
 
     @staticmethod
     def get_edge_arrow(node):
