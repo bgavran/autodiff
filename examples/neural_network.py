@@ -3,56 +3,55 @@ import automatic_differentiation as ad
 
 from examples.data import get_data
 
+input_size = 784
+hidden_size = 10
+out_size = 10
+nn = ad.NN([input_size, hidden_size, out_size])
+optimizer = ad.Adam(len(nn.w))
 
-@ad.module_wrapper
-def nn(x, w0):
-    x_reshaped = ad.Reshape(x, ad.Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
-    return x_reshaped @ w0
+batch_size = 32
 
+for step in range(10000):
+    x_val, y_val = get_data(train=True, batch_size=batch_size)
+    x, y_true = ad.Variable(x_val, name="x"), ad.Variable(y_val, name="y")
+    x = ad.Reshape(x, ad.Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
 
-@ad.module_wrapper
-def softmax_ce_logits(labels, logits):
-    return ad.Einsum("i->", ad.SoftmaxCEWithLogits(labels=labels, logits=logits))
+    y_logit = nn(x)
 
+    cost = ad.Einsum("i->", ad.SoftmaxCEWithLogits(labels=y_true, logits=y_logit)) / batch_size
 
-@ad.module_wrapper
-def optimizer(w, w_grad):
-    lr = 0.001
-    return w - lr * w_grad
+    w_list_grads = ad.grad(cost, nn.w)
 
+    new_w_list = optimizer([i() for i in nn.w], [i() for i in w_list_grads])
 
-w0 = ad.Variable(np.random.randn(28 * 28, 10) * 0.01, name="w0")
+    for w, new_w in zip(nn.w, new_w_list):
+        w.value = new_w
 
-for i in range(2000):
-    x_val, y_val = get_data(train=True)
-    x, y = ad.Variable(x_val, name="x"), ad.Variable(y_val, name="y")
-
-    logits = nn(x, w0)
-
-    loss = softmax_ce_logits(y, logits)
-
-    w0_grad = ad.Grad(loss, w0)
-    new_w0 = optimizer(w0, w0_grad)
-
-    w0 = ad.Variable(new_w0(), name="w0")
-
-    if i % 100 == 0:
-        print("Step:", i)
-        print("Loss:", np.sum(loss()))
-        print("-----------")
+    if step % 1000 == 0:
+        text = "step {}, cost {:.2f}, grad norm {:.2f}"
+        print(text.format(step, cost(), ad.FrobeniusNorm(*w_list_grads)()))
 
 print("Testing...")
-x, y = get_data(train=False)
+x, y = get_data(train=False, batch_size=100)
 x, y = ad.Variable(x, name="x"), ad.Variable(y, name="y")
+x = ad.Reshape(x, ad.Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
 
-test_network = ad.Softmax(nn(x, w0))
-test_loss = softmax_ce_logits(y, nn(x, w0))
+
+def network_output(x):
+    probs = ad.Softmax(nn(x))
+    return probs()
+
+
+def network_loss(x, y_true):
+    return ad.Einsum("i->", ad.SoftmaxCEWithLogits(labels=y_true, logits=nn(x)))
+
 
 true = np.argmax(y(), -1)
-pred = np.argmax(test_network(), -1)
+pred = np.argmax(network_output(x), -1)
 print("True y:", true)
 print("Predicted y:", pred)
 print("Last batch accuracy:", np.mean(true == pred))
-print("Loss:", np.sum(test_loss()))
+print("Loss:", network_loss(x, y_true)())
+print([w() for w in nn.w])
 
-new_w0.plot_comp_graph(view=True)
+# sum(w_list_grads).plot_comp_graph()
