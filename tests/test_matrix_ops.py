@@ -14,7 +14,7 @@ class TestOneArgOperations(TestCase):
 
         """
         np.random.seed(1337)
-        self.w0_val = np.random.randn(2, 5)
+        self.w0_val = np.random.randn(2, 3)
         self.w1_val = np.random.randn(3, 5)
         self.w2_val = np.random.randn(10, 3)
         self.w3_val = np.random.randn(10, 5)

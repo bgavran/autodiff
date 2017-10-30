@@ -4,15 +4,15 @@ import timeout_decorator
 import automatic_differentiation as ad
 
 
-def differentiate_n_times(my_graph, tf_graph, my_vars, tf_vars, n=1):
+def differentiate_n_times(my_graph, tf_graph, my_vars, tf_vars, n=1, my_curr_grad=None, tf_curr_grad=None):
     # all vars share the first graph derivation and speed up the test
-    # higher order graphs are different
+    # but higher order graphs are different
 
     for i in range(n):
         if i == 0:
-            my_graphs = ad.grad(my_graph, my_vars)
+            my_graphs = ad.grad(my_graph, my_vars, curr_grad=my_curr_grad)
             if tf_graph is not None:
-                tf_graphs = tf.gradients(tf_graph, tf_vars)
+                tf_graphs = tf.gradients(tf_graph, tf_vars, grad_ys=tf_curr_grad)
         else:
             for i in range(len(my_graphs)):
                 my_graphs[i] = ad.grad(my_graphs[i], [my_vars[i]])[0]
@@ -28,15 +28,18 @@ def oneop_f(my_graph, tf_graph):
     print("---------- f ----------")
     print("My_val:", my_val)
     print("Tf_val:", tf_val)
-    print("-----------------------")
     np.testing.assert_allclose(my_val, tf_val)
 
 
-def oneop_df_n_times(test, my_graph, tf_graph, my_vars, tf_vars, n=1):
-    my_graphs, tf_graphs = differentiate_n_times(my_graph, tf_graph, my_vars, tf_vars, n=n)
+def oneop_df_n_times(test, my_graph, tf_graph, my_vars, tf_vars, n=1, my_curr_grad=None, tf_curr_grad=None):
+    my_graphs, tf_graphs = differentiate_n_times(my_graph, tf_graph, my_vars, tf_vars, n=n,
+                                                 my_curr_grad=my_curr_grad, tf_curr_grad=tf_curr_grad)
 
     for my_var, tf_var, my_graph, tf_graph in zip(my_vars, tf_vars, my_graphs, tf_graphs):
-        with test.subTest(str(n) + "df_wrt_" + my_var.name):
+        name = str(n) + "df_wrt_" + my_var.name
+        if my_curr_grad is not None:
+            name += " with input gradient!!"
+        with test.subTest(name):
             eval_graphs(my_graph, tf_graph, my_var, tf_var, n)
 
 
@@ -55,7 +58,7 @@ def eval_graphs(my_graph, tf_graph, my_var, tf_var, n):
 
 
 @timeout_decorator.timeout(1)
-def test_one_op(test, my_graph, tf_graph, my_wrt, tf_wrt, n=2):
+def test_one_op(test, my_graph, tf_graph, my_wrt, tf_wrt, n=1):
     """
     Evaluates f and arbitrarily higher order df of my graph and tf graph (all in different subtests)
     and compares the results.
@@ -66,3 +69,14 @@ def test_one_op(test, my_graph, tf_graph, my_wrt, tf_wrt, n=2):
 
         for deriv in range(1, n + 1):
             oneop_df_n_times(test, my_graph, tf_graph, my_wrt, tf_wrt, n=deriv)
+
+        print("#############################")
+        print("    with random curr_grad    ")
+        print("#############################")
+
+        curr_grad_val = np.random.randn(*my_graph.shape)
+        my_curr_grad = ad.Variable(curr_grad_val)
+        tf_curr_grad = tf.constant(curr_grad_val, dtype=tf.float64)
+        for deriv in range(1, n + 1):
+            oneop_df_n_times(test, my_graph, tf_graph, my_wrt, tf_wrt, n=deriv,
+                             my_curr_grad=my_curr_grad, tf_curr_grad=tf_curr_grad)
