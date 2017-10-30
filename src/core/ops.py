@@ -4,6 +4,13 @@ import numbers
 from automatic_differentiation.src.core.computational_graph import Node, Primitive, Variable
 
 from functools import reduce
+import string
+
+
+def shape_from_elems(*elems):
+    if len(elems) == 0:
+        return 1,
+    return np.broadcast(*[np.ones(elem.shape) for elem in elems]).shape
 
 
 class Add(Primitive):
@@ -11,27 +18,40 @@ class Add(Primitive):
         if not elems:
             name = "0-" + name
         super().__init__(list(elems), name)
+        self.shape = shape_from_elems(*self.children)
 
     def f(self):
         # Using python sum instead of np.sum because python converts types correctly
         return sum([elem() for elem in self.children])
 
     def graph_df(self, wrt, curr_grad):
+        # curr_grad will always be of shape of the shape of the "largest" variable
+        # we need to sum across those other axes
+
+        curr_grad_letters = string.ascii_lowercase[:len(curr_grad.shape)]
+        wrt_letters = curr_grad_letters[-len(wrt.shape):]  # take last letters of curr_grad_letters
+
+        # sum to leave just the wrt letters
+        # but this wont work for more complex np broadcasting!
+        # if some dimension length is equal to
+        new_curr_grad = Einsum(str(curr_grad_letters) + "->" + str(wrt_letters), curr_grad)
+
         wrt_count = self.children.count(wrt)
-        return curr_grad * Variable(wrt_count)
+        return new_curr_grad * Variable(wrt_count)
 
 
 class Identity(Primitive):
     def __init__(self, node, name="Identity"):
         super().__init__([node], name)
         self.node = self.children[0]
+        self.shape = self.node.shape
 
     def f(self):
         return self.node.f()
 
     def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return curr_grad * self.node.graph_df(wrt, curr_grad)
+            return self.node.graph_df(wrt, curr_grad)
         return 0
 
 
@@ -42,6 +62,7 @@ class Mul(Primitive):
         if not elems:
             name = "1-" + name
         super().__init__(list(elems), name)
+        self.shape = shape_from_elems(*self.children)
 
     def f(self):
         return reduce(Mul.fn, [child() for child in self.children], 1)
@@ -58,6 +79,7 @@ class Negate(Primitive):
     def __init__(self, node, name="Negate"):
         super().__init__([node], name)
         self.node = node
+        self.shape = self.node.shape
 
     def f(self):
         return -self.node()
@@ -77,6 +99,7 @@ class Recipr(Primitive):
         """
         super().__init__([node], name)
         self.node = self.children[0]
+        self.shape = self.node.shape
 
     def f(self):
         return 1 / (self.node() + Primitive.epsilon)
@@ -91,6 +114,7 @@ class Transpose(Primitive):
     def __init__(self, node, name="Transpose"):
         super().__init__([node], name)
         self.node = self.children[0]
+        self.shape = self.node.shape[::-1]
 
     def f(self):
         return np.transpose(self.node())
@@ -101,10 +125,11 @@ class Transpose(Primitive):
         return 0
 
 
-class MatMul(Primitive):  # this is actually a Module
+class MatMul(Primitive):  # this is actually a Module?
     def __init__(self, a, b, name="MatMul"):
         super().__init__([a, b], name)
         self.op = Einsum("ij,jk->ik", self.children[0], self.children[1])
+        self.shape = self.children[0].shape[-2], self.children[1].shape[-1]
 
     def f(self):
         return self.op()
@@ -123,37 +148,51 @@ class Einsum(Primitive):
 
         self.opnames = re.split(",|->", self.op_str)
         self.all_letters = "".join(set("".join(self.opnames[:-1])))
+        # can also be "..." to an arbitrary shape tuple
+        self.letter_to_dim = {}
 
         if len(self.operands) + 1 != len(self.opnames):
             raise ValueError("Number of operands doesn't match the einsum string!")
 
-    def f(self):
-        """
-        Currently the problem is that some of the operands are just a number (like the input gradient)
-        and they need to be broadcasted correctly to their shape.
-        The shape can be inferred from all the other operands.
+        for op, op_letters in zip(self.operands, self.opnames[:-1]):
+            if len(op.shape) != 0 and len(op.shape) != len(op_letters) \
+                    and "..." not in op_letters and op_letters != "":
+                raise ValueError("Dimension of operand " + str(op) + " doesn't match the string! " +
+                                 "Shape: " + str(op.shape) + " , string: '" + op_letters + "'")
 
-        But can it? For matmul the first dimension is never known.
-        But perhaps that means that it shouldn't be possible to know it and that it should always
-        be possible to broadcast the result?
-        """
+            op_letters = op_letters[::-1]
+            shp = op.shape[::-1]
+            for i, lett in enumerate(Einsum.split_dots(op_letters)):
+                try:
+                    if len(lett) == 1:
+                        dim = [shp[i]]  # what if shape is an empty tuple?
+                    else:
+                        dim = shp[i:]
+                    if self.letter_to_dim.get(lett, dim) != dim:
+                        raise ValueError("Inconsistent dimension names!")
+                    self.letter_to_dim[lett] = dim
+                except IndexError:
+                    pass  # letters that we can't add are just dimension 1
+
+        # problem with inferring shape from "..." string in Einsum!
+        # TODO devise a way of inferring the shape of "..."
+        self.shape = []
+        for let in Einsum.split_dots(self.opnames[-1]):
+            for l in self.letter_to_dim.get(let, [1]):
+                self.shape.append(l)
+
+    @staticmethod
+    def split_dots(op_str):
+        match_string = "\.{3}|\S"
+        return re.findall(match_string, op_str)
+
+    def f(self):
         arr = [op() for op in self.operands]
-        letter_to_dim = {}
-        for i, val in enumerate(arr):
-            if isinstance(val, np.ndarray):
-                shape = val.shape
-                letters = self.opnames[i]
-                if len(shape) != len(letters) and "..." not in letters:  # ellipsis check needs to be solved properly!
-                    raise ValueError("Dimension of operand " + str(i + 1) + " doesn't match the string! " +
-                                     "Shape: " + str(shape) + " , string: '" + letters + "'")
-                for letter, dim in zip(letters, shape):
-                    letter_to_dim[letter] = dim
 
         for i, val in enumerate(arr):
             if isinstance(val, numbers.Number):
-                shape_in_letters = self.opnames[i]
-                shape_in_dims = [letter_to_dim.get(letter, 1) for letter in shape_in_letters]
-                arr[i] = np.broadcast_to(val, shape_in_dims)
+                shp = [l for let in Einsum.split_dots(self.opnames[i]) for l in self.letter_to_dim.get(let, [1])]
+                arr[i] = np.broadcast_to(val, shp)
 
         return np.einsum(self.op_str, *arr)
 
@@ -182,15 +221,12 @@ class Einsum(Primitive):
             opnames = list(np.array(self.opnames)[order])
 
             # we add here explicit Variables for implicitly summed out tensors
-            from automatic_differentiation.src.core.reshape import Shape
-
-            wrt_shape = Shape(wrt)
 
             for i, letter in enumerate(self.opnames[loc]):
                 if letter not in "".join(opnames[:-1]):
                     opnames.insert(0, letter)
 
-                    dim = wrt_shape[i]()
+                    dim = wrt.shape[i]
                     var_to_insert = Variable(np.ones(dim), name="np.ones(" + str(dim) + ")")
                     operands_with_grad.insert(0, var_to_insert)
             op_str = Einsum.to_einsum_string(opnames)
@@ -206,6 +242,7 @@ class ReLU(Primitive):
     def __init__(self, node, name="ReLU"):
         super().__init__([node], name)
         self.node = self.children[0]
+        self.shape = self.node.shape
 
     def f(self):
         val = self.node()
@@ -227,6 +264,7 @@ class Softmax(Primitive):
     def __init__(self, node, name="Softmax"):
         super().__init__([node], name)
         self.node = self.children[0]
+        self.shape = self.node.shape
 
     def f(self):
         """
@@ -242,7 +280,9 @@ class Softmax(Primitive):
         one = np.array([1])
 
         # using my Einsum instead of numpy's since mine broadcasts them in a way that works well for autodiff
-        last_axis_sum = Einsum("...j,o->...o", Variable(shifted_exp, name="shifted_exp"), Variable(one, name="1"))()
+        shifted_exp_var = Variable(shifted_exp, name="shifted_exp")
+        one_var = Variable(one, name="1")
+        last_axis_sum = Einsum("...j,o->...o", shifted_exp_var, one_var)()
         return shifted_exp / last_axis_sum
 
     def graph_df(self, wrt, curr_grad):
@@ -251,12 +291,12 @@ class Softmax(Primitive):
             # matrix of the self outer product
             outer = Einsum("...i,...j->...ij", self, self)
 
-            val_ones = np.eye(self().shape[-1])
-            ones_diag = Variable(val_ones, "einsum_ones")
+            ones_diag = Variable(np.eye(self.shape[-1]), "einsum_ones")
             # matrix where the only nonzero elements are the softmax vector on the diagonal
             kronecker_val = Einsum("...ij,...j->...ij", ones_diag, self)
 
-            return curr_grad * Einsum("...ij->...j", outer - kronecker_val)
+            a = Einsum("...ij->...j", outer - kronecker_val)
+            return curr_grad * a
         return 0
 
 
@@ -265,6 +305,8 @@ class SoftmaxCEWithLogits(Primitive):
         super().__init__([labels, logits], name=name)
         self.labels = labels
         self.logits = logits
+
+        self.shape = self.logits.shape[:-1]
 
     def f(self):
         labels_val = self.labels()
@@ -279,8 +321,7 @@ class SoftmaxCEWithLogits(Primitive):
 
     def graph_df(self, wrt, curr_grad):
         if wrt == self.logits:
-            # TODO missing grad here!
-            return Softmax(self.logits) - self.labels
+            return Einsum("...i,...ij->...ij", curr_grad, Softmax(self.logits) - self.labels)
         elif wrt == self.labels:
             return Variable(0)
         return 0
@@ -291,6 +332,7 @@ class Pow(Primitive):
         super().__init__([first, second], name)
         self.first = self.children[0]
         self.second = self.children[1]
+        self.shape = shape_from_elems(*self.children)
 
     def f(self):
         return np.power(self.first(), self.second())
@@ -309,6 +351,7 @@ class Log(Primitive):
     def __init__(self, node, name="Log"):
         super().__init__([node], name)
         self.node = self.children[0]
+        self.shape = self.node.shape
 
     def f(self):
         return np.log(self.node() + Primitive.epsilon)
@@ -323,6 +366,7 @@ class Exp(Primitive):
     def __init__(self, node, name="Exp"):
         super().__init__([node], name)
         self.node = self.children[0]
+        self.shape = self.node.shape
 
     def f(self):
         return np.exp(self.node())
@@ -337,6 +381,7 @@ class Sigmoid(Primitive):
     def __init__(self, node, name="Sigmoid"):
         super().__init__([node], name=name)
         self.node = self.children[0]
+        self.shape = self.node.shape
 
     def f(self):
         return 1 / (1 + np.exp(-self.node()))
@@ -351,6 +396,7 @@ class FrobeniusNorm(Primitive):
     def __init__(self, *nodes, name="Frobenius Norm"):
         super().__init__(list(nodes), name=name)
         self.nodes = nodes
+        self.shape = 1,
 
     def f(self):
         return np.sqrt(sum([np.sum(np.square(node())) for node in self.nodes]))

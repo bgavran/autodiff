@@ -16,9 +16,8 @@ def diff_n_times(graph, wrt, n):
 plt.plot(x(), diff_n_times(fn(x), x, 0)(),
          x(), diff_n_times(fn(x), x, 1)(),
          x(), diff_n_times(fn(x), x, 2)(),
-         x(), diff_n_times(fn(x), x, 3)(),
-         x(), diff_n_times(fn(x), x, 4)())
+         x(), diff_n_times(fn(x), x, 3)())
 
 plt.title("Visualization of higher order derivatives of tanh")
 plt.show()
-ad.grad(fn(x), [x])[0].plot_comp_graph()
+# ad.grad(fn(x), [x])[0].plot_comp_graph()

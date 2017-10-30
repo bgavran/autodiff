@@ -20,24 +20,22 @@ class TestTwoArgScalarOperations(TestCase):
         self.my_w0 = ad.Variable(self.w0_val, name="w0_val")
         self.my_w1 = ad.Variable(self.w1_val, name="w1_val")
 
-        self.n_times = 3
-
     def test_add(self):
         my_graph = ad.Add(self.my_w0, self.my_w1)
         tf_graph = tf.add(self.tf_w0, self.tf_w1)
-        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1], n=self.n_times)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1])
 
     def test_mul(self):
         my_graph = ad.Mul(self.my_w0, self.my_w1)
         tf_graph = tf.multiply(self.tf_w0, self.tf_w1)
-        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1], n=self.n_times)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1])
 
     def test_power(self):
         my_graph = ad.Pow(self.my_w0, self.my_w1)
         tf_graph = tf.pow(self.tf_w0, self.tf_w1)
-        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1], n=self.n_times)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1])
 
     def test_squared_difference(self):
         my_graph = ad.SquaredDifference(self.my_w0, self.my_w1)
         tf_graph = tf.squared_difference(self.tf_w0, self.tf_w1)
-        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1], n=self.n_times)
+        utils.test_one_op(self, my_graph, tf_graph, [self.my_w0, self.my_w1], [self.tf_w0, self.tf_w1])

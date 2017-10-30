@@ -20,7 +20,7 @@ class NN(Module):
             self.w.append(w)
 
     def forward(self, x):
-        first_dim = x().shape[0]
+        first_dim = x.shape[0]
         bias = ad.Variable(np.ones((first_dim, 1)), name="bias")
         for i, w in enumerate(self.w):
             x = ad.Concat(x, bias, axis=1)

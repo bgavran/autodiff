@@ -5,9 +5,11 @@ class Concat(Primitive):
     def __init__(self, a, b, axis=0):
         assert axis >= 0  # if axis is -1, how do we find out how many axes are there?
         super().__init__([a, b], name="Concat")
-        self.a = a
-        self.b = b
+        self.a, self.b = self.children
         self.axis = axis
+
+        self.shape = list(self.a.shape)
+        self.shape[axis] += self.b.shape[axis]
 
     def f(self):
         a_val = self.a()
@@ -15,8 +17,8 @@ class Concat(Primitive):
         return np.concatenate((a_val, b_val), axis=self.axis)
 
     def graph_df(self, wrt, curr_grad):
-        curr_grad = Reshape(curr_grad, Shape(self))  # in case it's just a scalar Variable
-        split = self.a().shape[self.axis]
+        curr_grad = Reshape(curr_grad, self.shape)  # in case it's just a scalar Variable
+        split = self.a.shape[self.axis]
 
         slice_val = [slice(None, None, None) for _ in range(self.axis + 1)]
         if wrt == self.a:
@@ -29,49 +31,32 @@ class Concat(Primitive):
         return 0
 
 
-class Shape(Primitive):
-    def __init__(self, node=None, from_tuple=None, name="Shape"):
-        # this seems to complex compared to the rest of the code?
-        if node is None and from_tuple is None:
-            raise ValueError("Must pass either a node or a shape tuple!")
-        elif node is not None and from_tuple is not None:
-            raise ValueError("Must pass just one of the arguments!")
-
-        if node is not None:
-            super().__init__([node], name)
-            self.node = self.children[0]
-        else:
-            super().__init__([], name)
-            self.shape = from_tuple
-
-    def f(self):
-        if hasattr(self, "node"):
-            return np.array(self.node()).shape
-        else:
-            return self.shape
-
-    def graph_df(self, wrt, curr_grad):
-        # Should it be this way?
-        return 0
-
-
 class Reshape(Primitive):
     def __init__(self, node, shape, name="Reshape"):
         super().__init__([node], name)
         self.node = self.children[0]
-        self.shape = shape  # shape is also a Node
+        self.shape = self.infer_shape(shape)  # because some some dimension might be -1
 
     def f(self):
         node_val = self.node()
-        like_node_shape = self.shape()
         if isinstance(node_val, numbers.Number):
-            return np.broadcast_to(node_val, like_node_shape)
-        return np.reshape(node_val, like_node_shape)
+            return np.broadcast_to(node_val, self.shape)
+        return np.reshape(node_val, self.shape)
 
     def graph_df(self, wrt, curr_grad):
         if self.node == wrt:
-            return Reshape(curr_grad, Shape(self.node))
+            return Reshape(curr_grad, self.node.shape)
         return 0
+
+    def infer_shape(self, shape):
+        if isinstance(shape, numbers.Number):
+            return shape
+        if -1 in shape:
+            shape = list(shape)
+            for i in range(len(shape)):
+                if shape[i] == -1:
+                    shape[i] = int(-np.prod(self.node.shape) / np.prod(shape))
+        return shape
 
 
 # TODO does slicing really work as it should?! Higher order gradients seem wrong?
@@ -80,6 +65,7 @@ class Slice(Primitive):
     # TODO slicing with the double dot operator?
     def __init__(self, node, slice_val, name="Slice"):
         # stop value must be negative and step must be None (constraint of current implementation)
+
         # cond = lambda slc: (slc.stop is None or slc.stop < 0) and slc.step is None
         # if isinstance(slice_val, tuple) or isinstance(slice_val, list):
         # for sl in slice_val:
@@ -92,6 +78,8 @@ class Slice(Primitive):
         self.node = self.children[0]
         self.slice_val = slice_val
 
+        self.shape = self().shape  # TODO fix hack
+
     def f(self):
         val = self.node()
         if isinstance(val, numbers.Number):
@@ -101,7 +89,7 @@ class Slice(Primitive):
     def graph_df(self, wrt, curr_grad):
         # TODO how to do this in a simple way? Also needs to support reversal of tensor ([::-1])
         if self.node == wrt:
-            curr_grad = Reshape(curr_grad, Shape(self))  # in case it's just a scalar Variable
+            curr_grad = Reshape(curr_grad, self.shape)  # in case it's just a scalar Variable
 
             if isinstance(self.slice_val, list) or isinstance(self.slice_val, tuple):
                 pad_val = [[0 if sl.start is None else sl.start,
@@ -125,6 +113,8 @@ class Pad(Primitive):
         self.node = self.children[0]
         self.pad_width = pad_width
         self.constant_values = constant_values
+
+        self.shape = self.node.shape  # TODO fix this line!
 
     def f(self):
         val = self.node()

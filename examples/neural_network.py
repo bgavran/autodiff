@@ -14,11 +14,12 @@ batch_size = 32
 for step in range(10000):
     x_val, y_val = get_data(train=True, batch_size=batch_size)
     x, y_true = ad.Variable(x_val, name="x"), ad.Variable(y_val, name="y")
-    x = ad.Reshape(x, ad.Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
+    x = ad.Reshape(x, (-1, 28 * 28))  # [batch_size, 28*28]
 
     y_logit = nn(x)
 
-    cost = ad.Einsum("i->", ad.SoftmaxCEWithLogits(labels=y_true, logits=y_logit)) / batch_size
+    sce = ad.SoftmaxCEWithLogits(labels=y_true, logits=y_logit)
+    cost = ad.Einsum("i->", sce) / batch_size
 
     w_list_grads = ad.grad(cost, nn.w)
 
@@ -33,8 +34,8 @@ for step in range(10000):
 
 print("Testing...")
 x, y = get_data(train=False, batch_size=100)
-x, y = ad.Variable(x, name="x"), ad.Variable(y, name="y")
-x = ad.Reshape(x, ad.Shape(from_tuple=(-1, 28 * 28)))  # [batch_size, 28*28]
+x, y_true = ad.Variable(x, name="x"), ad.Variable(y, name="y")
+x = ad.Reshape(x, (-1, 28 * 28))  # [batch_size, 28*28]
 
 
 def network_output(x):
@@ -46,12 +47,11 @@ def network_loss(x, y_true):
     return ad.Einsum("i->", ad.SoftmaxCEWithLogits(labels=y_true, logits=nn(x)))
 
 
-true = np.argmax(y(), -1)
+true = np.argmax(y_true(), -1)
 pred = np.argmax(network_output(x), -1)
 print("True y:", true)
 print("Predicted y:", pred)
 print("Last batch accuracy:", np.mean(true == pred))
 print("Loss:", network_loss(x, y_true)())
-print([w() for w in nn.w])
 
 # sum(w_list_grads).plot_comp_graph()

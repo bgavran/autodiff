@@ -1,9 +1,12 @@
+import numpy as np
 import automatic_differentiation as ad
 
-w0 = ad.Variable(2, name="w0")
-w1 = ad.Variable(3, name="w1")
+x = ad.Variable(np.random.randn(5, 3), name="x")
+b = ad.Variable(np.random.randn(5, 1), name="b")
 
-graph = w0 * w1
-print(graph())
-w0_grad = ad.grad(graph, [w0])[0]
-print(w0_grad())
+c = ad.Concat(x, b, axis=1)
+
+print("c ==", c().shape, "\n")
+
+graph = ad.grad(c, [x])[0]
+print(graph().shape)

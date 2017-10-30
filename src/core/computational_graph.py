@@ -108,6 +108,7 @@ class Primitive(Node):
     def __init__(self, children, name=""):
         super().__init__(children, name)
         self.cached = None
+        self.shape = None
 
     def __call__(self, *args, **kwargs):
         return self.eval()
@@ -130,7 +131,12 @@ class Variable(Primitive):
         if name is None:
             name = str(value)  # this op is really slow for np.arrays?!
         super().__init__([], name)
-        self._value = value
+
+        if isinstance(value, numbers.Number):
+            self._value = np.array(value)
+        else:
+            self._value = value
+        self.shape = self._value.shape
 
     @property
     def value(self):
@@ -153,9 +159,11 @@ def add_sum_name(node):
     return "'" + node.name + "' grad_sum"
 
 
-def grad(top_node, wrt_list, curr_grad=Variable(1, name="init_grad")):
+def grad(top_node, wrt_list, curr_grad=None):
     assert isinstance(wrt_list, list) or isinstance(wrt_list, tuple)
     from automatic_differentiation.src.core.ops import Add
+    if curr_grad is None:
+        curr_grad = Variable(1, name="init_grad")
 
     dct = collections.defaultdict(list)
     dct[top_node].append(curr_grad)
