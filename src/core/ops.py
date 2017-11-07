@@ -2,6 +2,7 @@ import re
 import numpy as np
 import numbers
 from automatic_differentiation.src.core.computational_graph import Node, Primitive, Variable
+from automatic_differentiation.src.core.reshape import ReduceSumKeepDims
 
 from functools import reduce
 import string
@@ -13,20 +14,18 @@ def shape_from_elems(*elems):
     return np.broadcast(*[np.ones(elem.shape) for elem in elems]).shape
 
 
-def reduce_grad(curr_grad, wrt):
-    if curr_grad.shape == wrt.shape:
-        return curr_grad
-    curr_grad_letters = string.ascii_lowercase[:len(curr_grad.shape)]
+def reduce_grad(previous_grad, wrt):
+    if previous_grad.shape == wrt.shape:
+        return previous_grad
+    previous_grad_letters = string.ascii_lowercase[:len(previous_grad.shape)]
     if len(wrt.shape) == 0:
         wrt_letters = ""
     else:
-        wrt_letters = curr_grad_letters[-len(wrt.shape):]  # take last letters of curr_grad_letters
+        wrt_letters = previous_grad_letters[-len(wrt.shape):]  # take last letters of previous_grad_letters
 
-    # sum to leave just the wrt letters
-    # but this wont work for more complex np broadcasting!
-    # if some dimension length is equal to
-    new_curr_grad = Einsum(str(curr_grad_letters) + "->" + str(wrt_letters), curr_grad)
-    return new_curr_grad
+    new_curr_grad = Einsum(str(previous_grad_letters) + "->" + str(wrt_letters), previous_grad)
+    reduced_sum_grad = ReduceSumKeepDims(new_curr_grad, axes=[i for i, val in enumerate(wrt.shape) if val == 1])
+    return reduced_sum_grad
 
 
 class Add(Primitive):
@@ -36,16 +35,16 @@ class Add(Primitive):
         super().__init__(list(elems), name)
         self.shape = shape_from_elems(*self.children)
 
-    def f(self):
+    def _eval(self):
         # Using python sum instead of np.sum because python converts types correctly
         return np.array(sum([elem() for elem in self.children]))
 
-    def graph_df(self, wrt, curr_grad):
-        # curr_grad will always be of shape of the shape of the "largest" variable
+    def partial_derivative(self, wrt, previous_grad):
+        # previous_grad will always be of shape of the shape of the "largest" variable
         # we need to sum across those other axes
 
         wrt_count = self.children.count(wrt)
-        grad = curr_grad * Variable(wrt_count)
+        grad = previous_grad * Variable(wrt_count)
         return reduce_grad(grad, wrt)
 
 
@@ -58,34 +57,34 @@ class Mul(Primitive):
         super().__init__(list(elems), name)
         self.shape = shape_from_elems(*self.children)
 
-    def f(self):
+    def _eval(self):
         # Mul broadcasts
         return reduce(Mul.fn, [child() for child in self.children], 1)
 
-    def graph_df(self, wrt, curr_grad):
-        # curr_grad will always be of shape of the shape of the "largest" variable ?
+    def partial_derivative(self, wrt, previous_grad):
+        # previous_grad will always be of shape of the shape of the "largest" variable ?
         # we need to sum across those other axes ?
         add_list = []
         for loc, child in enumerate(self.children):
             if child == wrt:
                 add_list.append(Mul(*[ch for i, ch in enumerate(self.children) if loc != i]))
 
-        grad = curr_grad * Add(*add_list)
+        grad = previous_grad * Add(*add_list)
         return reduce_grad(grad, wrt)
 
 
 class Negate(Primitive):
     def __init__(self, node, name="Negate"):
         super().__init__([node], name)
-        self.node = node
+        self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         return -self.node()
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return -curr_grad
+            return -previous_grad
         else:
             return 0
 
@@ -100,12 +99,12 @@ class Recipr(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         return 1 / (self.node() + Primitive.epsilon)
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return - curr_grad * self * self
+            return - previous_grad * self * self
         return 0
 
 
@@ -115,12 +114,12 @@ class Transpose(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape[::-1]
 
-    def f(self):
+    def _eval(self):
         return np.transpose(self.node())
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return Transpose(curr_grad)
+            return Transpose(previous_grad)
         return 0
 
 
@@ -160,8 +159,6 @@ class Einsum(Primitive):
                 except IndexError:
                     pass  # letters that we can't add are just dimension 1
 
-        # problem with inferring shape from "..." string in Einsum!
-        # TODO devise a way of inferring the shape of "..."
         self.shape = []
         for let in Einsum.split_dots(self.opnames[-1]):
             for l in self.letter_to_dim.get(let, [1]):
@@ -172,7 +169,7 @@ class Einsum(Primitive):
         match_string = "\.{3}|\S"
         return re.findall(match_string, op_str)
 
-    def f(self):
+    def _eval(self):
         arr = [op() for op in self.operands]
 
         for i, val in enumerate(arr):
@@ -182,7 +179,7 @@ class Einsum(Primitive):
 
         return np.einsum(self.op_str, *arr)
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         """
         Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
         Gradient w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
@@ -190,33 +187,30 @@ class Einsum(Primitive):
 
         For tensors that have some of their dimensions implicitly summed, a new tensor of ones is explicitly added
         """
-        if "..." in self.op_str:
-            raise NotImplementedError("Grad of Einsum that uses ellipsis is not implemented yet!")
-        else:
-            order = list(range(len(self.opnames)))
+        order = list(range(len(self.opnames)))
 
-            try:
-                loc = self.operands.index(wrt)
-            except ValueError:
-                return 0
-            order[loc], order[-1] = order[-1], order[loc]
+        try:
+            loc = self.operands.index(wrt)
+        except ValueError:
+            return 0
+        order[loc], order[-1] = order[-1], order[loc]
 
-            # this is concatenation of two lists in np array and then their reorder
-            operands_with_grad = list(np.array(self.operands + [curr_grad])[order])
+        # this is concatenation of two lists in np array and then their reorder
+        operands_with_grad = list(np.array(self.operands + [previous_grad])[order])
 
-            opnames = list(np.array(self.opnames)[order])
+        opnames = list(np.array(self.opnames)[order])
 
-            # here we add explicit Variables for implicitly summed out tensors
-            for i, letter in enumerate(Einsum.split_dots(self.opnames[loc])):
-                if letter not in Einsum.split_dots("".join(opnames[:-1])):
-                    opnames.insert(0, letter)
+        # here we add explicit Variables for implicitly summed out tensors
+        for i, letter in enumerate(Einsum.split_dots(self.opnames[loc])):
+            if letter not in Einsum.split_dots("".join(opnames[:-1])):
+                opnames.insert(0, letter)
 
-                    dim = wrt.shape[i]
-                    var_to_insert = Variable(np.ones(dim), name="np.ones(" + str(dim) + ")")
-                    operands_with_grad.insert(0, var_to_insert)
-            op_str = Einsum.to_einsum_string(opnames)
+                dim = wrt.shape[i]
+                var_to_insert = Variable(np.ones(dim), name="np.ones(" + str(dim) + ")")
+                operands_with_grad.insert(0, var_to_insert)
+        op_str = Einsum.to_einsum_string(opnames)
 
-            return Einsum(op_str, *operands_with_grad[:-1])
+        return Einsum(op_str, *operands_with_grad[:-1])
 
     @staticmethod
     def to_einsum_string(list_of_ops):
@@ -229,13 +223,13 @@ class ReLU(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         val = self.node()
         return val * (val > 0)
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return curr_grad * self * Recipr(self)
+            return previous_grad * self * Recipr(self)
         return 0
 
 
@@ -250,7 +244,7 @@ class Softmax(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         """
 
         Subtracting the max of last axis from each element in softmax.
@@ -268,14 +262,14 @@ class Softmax(Primitive):
         last_axis_sum = Einsum("...j,o->...o", shifted_exp_var, one_var)()
         return shifted_exp / last_axis_sum
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         # TODO higher order gradients don't work because Einsum grad can't be taken if ellipsis is used!
         if wrt == self.node:
             # matrix of the self outer product
-            outer = Einsum("...i,...j->...ij", curr_grad * self, self)
+            outer = Einsum("...i,...j->...ij", previous_grad * self, self)
 
-            summ = reduce_grad(curr_grad, Variable(np.zeros(self.shape[-1])))
-            ones_diag = Variable(np.eye(self.shape[-1]), "einsum_ones") # * summ
+            # summ = reduce_grad(previous_grad, Variable(np.zeros(self.shape[-1])))
+            ones_diag = Variable(np.eye(self.shape[-1]), "einsum_ones")
             # matrix where the only nonzero elements are the softmax vector on the diagonal
             # ij subscripts are both the same size, but np.einsum doesn't allow them with the same label
             kronecker_val = Einsum("ij,...j->...ij", ones_diag, self)
@@ -288,12 +282,11 @@ class Softmax(Primitive):
 class SoftmaxCEWithLogits(Primitive):
     def __init__(self, labels, logits, name="SoftmaxCEWithLogits"):
         super().__init__([labels, logits], name=name)
-        self.labels = labels
-        self.logits = logits
+        self.labels, self.logits = self.children
 
         self.shape = self.logits.shape[:-1]
 
-    def f(self):
+    def _eval(self):
         labels_val = self.labels()
         logits_val = self.logits()
         labels_sum = np.sum(labels_val, axis=1)
@@ -307,9 +300,9 @@ class SoftmaxCEWithLogits(Primitive):
         s = -np.sum(labels_val * logits_val - labels_val * logsumexp, axis=-1)
         return s
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if wrt == self.logits:
-            return Einsum("...i,...ij->...ij", curr_grad, Softmax(self.logits) - self.labels)
+            return Einsum("...i,...ij->...ij", previous_grad, Softmax(self.logits) - self.labels)
         elif wrt == self.labels:
             return Variable(0)
         return 0
@@ -318,18 +311,17 @@ class SoftmaxCEWithLogits(Primitive):
 class SigmoidCEWithLogits(Primitive):
     def __init__(self, labels, logits, name="SigmoidCEWithLogits"):
         super().__init__([labels, logits], name)
-        self.labels = labels
-        self.logits = logits
+        self.labels, self.logits = self.children
         self.shape = self.logits.shape
 
-    def f(self):
+    def _eval(self):
         z = self.labels()
         x = self.logits()
         return np.maximum(x, 0) - x * z + np.log(1 + np.exp(-abs(x)))
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if wrt == self.logits:
-            return Einsum("...ij,...ij->...ij", curr_grad, Sigmoid(self.logits) - self.labels)
+            return Einsum("...ij,...ij->...ij", previous_grad, Sigmoid(self.logits) - self.labels)
         return 0
 
 
@@ -340,16 +332,16 @@ class Pow(Primitive):
         self.second = self.children[1]
         self.shape = shape_from_elems(*self.children)
 
-    def f(self):
+    def _eval(self):
         return np.power(self.first(), self.second())
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.first == self.second == wrt:
-            return curr_grad * self * (Log(self.first) + 1)
+            return previous_grad * self * (Log(self.first) + 1)
         elif self.first == wrt:
-            return curr_grad * self.second * Pow(self.first, self.second - 1)
+            return previous_grad * self.second * Pow(self.first, self.second - 1)
         elif self.second == wrt:
-            return curr_grad * Log(self.first) * self
+            return previous_grad * Log(self.first) * self
         return 0
 
 
@@ -359,12 +351,12 @@ class Log(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         return np.log(self.node() + Primitive.epsilon)
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return curr_grad * Recipr(self.node)
+            return previous_grad * Recipr(self.node)
         return 0
 
 
@@ -374,12 +366,12 @@ class Identity(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         return self.node()
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return curr_grad
+            return previous_grad
         return 0
 
 
@@ -389,12 +381,12 @@ class Exp(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         return np.exp(self.node())
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return curr_grad * self
+            return previous_grad * self
         return 0
 
 
@@ -404,27 +396,47 @@ class Sigmoid(Primitive):
         self.node = self.children[0]
         self.shape = self.node.shape
 
-    def f(self):
+    def _eval(self):
         return 1 / (1 + np.exp(-self.node()))
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if wrt == self.node:
-            return curr_grad * self * (1 - self)
+            return previous_grad * self * (1 - self)
         return 0
 
 
 class FrobeniusNorm(Primitive):
     def __init__(self, *nodes, name="Frobenius Norm"):
         super().__init__(list(nodes), name=name)
-        self.nodes = nodes
+        self.nodes = self.children
         self.shape = 1,
 
-    def f(self):
+    def _eval(self):
         return np.sqrt(sum([np.sum(np.square(node())) for node in self.nodes]))
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         try:
             loc = self.nodes.index(wrt)
         except ValueError:
             return 0
-        return curr_grad * self.nodes[loc] / self
+        return previous_grad * self.nodes[loc] / self
+
+
+class NormalDistribution(Primitive):
+    def __init__(self, node, mean=0, variance=1, name="Normal Distribution"):
+        super().__init__([node], name=name)
+        self.node = self.children[0]
+        self.mean = mean
+        self.variance = variance
+        self.shape = self.node.shape
+
+    def _eval(self):
+        node_val = self.node()
+        m = self.mean
+        v = self.variance
+        return 1 / np.sqrt(2 * np.pi * (v ** 2)) * np.exp(-(node_val - m) ** 2 / (2 * v ** 2))
+
+    def partial_derivative(self, wrt, previous_grad):
+        if self.node == wrt:
+            return -previous_grad * self.node * self
+        return 0
