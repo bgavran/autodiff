@@ -1,5 +1,6 @@
 import numpy as np
 import automatic_differentiation as ad
+import time
 
 from examples.data import get_data
 
@@ -11,6 +12,7 @@ optimizer = ad.Adam(len(nn.w))
 
 batch_size = 32
 
+start = time.time()
 for step in range(10000):
     x_val, y_val = get_data(train=True, batch_size=batch_size)
     x, y_true = ad.Variable(x_val, name="x"), ad.Variable(y_val, name="y")
@@ -29,8 +31,9 @@ for step in range(10000):
         w.value = new_w
 
     if step % 1000 == 0:
-        text = "step {}, cost {:.2f}, grad norm {:.2f}"
-        print(text.format(step, cost(), ad.FrobeniusNorm(*w_list_grads)()))
+        text = "step {}, cost {:.2f}, grad norm {:.2f}, time {:.2f}"
+        print(text.format(step, cost(), ad.FrobeniusNorm(*w_list_grads)(), time.time() - start))
+        start = time.time()
 
 print("Testing...")
 x, y = get_data(train=False, batch_size=100)
