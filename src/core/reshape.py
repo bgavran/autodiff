@@ -1,4 +1,22 @@
-from automatic_differentiation.src.core.computational_graph import *
+import numbers
+import numpy as np
+from automatic_differentiation.src.core.computational_graph import Primitive
+
+
+class ReduceSumKeepDims(Primitive):
+    def __init__(self, node, axes):
+        super().__init__([node], name="ReduceSumKeepDims")
+        self.node = self.children[0]
+        self.axes = tuple(axes)
+        self.shape = [1 if i in self.axes else shp for i, shp in enumerate(self.node.shape)]
+
+    def _eval(self):
+        return np.sum(self.node(), axis=self.axes, keepdims=True)
+
+    def partial_derivative(self, wrt, previous_grad):
+        if self.node == wrt:
+            return previous_grad * np.ones(self.node.shape)
+        return 0
 
 
 class Concat(Primitive):
@@ -11,23 +29,23 @@ class Concat(Primitive):
         self.shape = list(self.a.shape)
         self.shape[axis] += self.b.shape[axis]
 
-    def f(self):
+    def _eval(self):
         a_val = self.a()
         b_val = self.b()
         return np.concatenate((a_val, b_val), axis=self.axis)
 
-    def graph_df(self, wrt, curr_grad):
-        curr_grad = Reshape(curr_grad, self.shape)  # in case it's just a scalar Variable
+    def partial_derivative(self, wrt, previous_grad):
+        previous_grad = Reshape(previous_grad, self.shape)  # in case it's just a scalar Variable
         split = self.a.shape[self.axis]
 
         slice_val = [slice(None, None, None) for _ in range(self.axis + 1)]
         if wrt == self.a:
             slice_val[self.axis] = slice(None, split, None)
-            return curr_grad[slice_val]
+            return previous_grad[slice_val]
         elif wrt == self.b:
             # need to broadcast grad to shape of self?
             slice_val[self.axis] = slice(split, None, None)
-            return curr_grad[slice_val]
+            return previous_grad[slice_val]
         return 0
 
 
@@ -37,15 +55,15 @@ class Reshape(Primitive):
         self.node = self.children[0]
         self.shape = self.infer_shape(shape)  # because some some dimension might be -1
 
-    def f(self):
+    def _eval(self):
         node_val = self.node()
         if isinstance(node_val, numbers.Number):
             return np.broadcast_to(node_val, self.shape)
         return np.reshape(node_val, self.shape)
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            return Reshape(curr_grad, self.node.shape)
+            return Reshape(previous_grad, self.node.shape)
         return 0
 
     def infer_shape(self, shape):
@@ -80,23 +98,23 @@ class Slice(Primitive):
 
         self.shape = self().shape  # TODO fix hack
 
-    def f(self):
+    def _eval(self):
         val = self.node()
         if isinstance(val, numbers.Number):
             return val
         return val[self.slice_val]
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         # TODO how to do this in a simple way? Also needs to support reversal of tensor ([::-1])
         if self.node == wrt:
-            curr_grad = Reshape(curr_grad, self.shape)  # in case it's just a scalar Variable
+            previous_grad = Reshape(previous_grad, self.shape)  # in case it's just a scalar Variable
 
             if isinstance(self.slice_val, list) or isinstance(self.slice_val, tuple):
                 pad_val = [[0 if sl.start is None else sl.start,
                             0 if sl.stop is None else -sl.stop] for sl in self.slice_val]
-                return Pad(curr_grad, pad_val, constant_values=[0 for _ in self.slice_val])
+                return Pad(previous_grad, pad_val, constant_values=[0 for _ in self.slice_val])
             else:
-                return curr_grad
+                return previous_grad
         return 0
 
 
@@ -116,15 +134,15 @@ class Pad(Primitive):
 
         self.shape = self.node.shape  # TODO fix this line!
 
-    def f(self):
+    def _eval(self):
         val = self.node()
         return np.pad(val, self.pad_width, mode="constant", constant_values=self.constant_values)
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
             # problem: pad[1] is always positive here?
             # it seems impossible to guarantee that slice inputs will be negative?
             # TODO there seems to be a need for a more fundamental solution to this!
             slice_val = [slice(pad[0], pad[1]) for pad in self.pad_width]
-            return curr_grad[slice_val]
+            return previous_grad[slice_val]
         return 0
