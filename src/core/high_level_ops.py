@@ -149,3 +149,14 @@ class SquaredDifference(Module):
 
 
 SquaredDifference = SquaredDifference()
+
+
+class MatMul(Module):
+    def __init__(self):
+        self.op_str = "ij,jk->ik"
+
+    def forward(self, a, b):
+        return ad.Einsum(self.op_str, a, b)
+
+
+MatMul = MatMul()
