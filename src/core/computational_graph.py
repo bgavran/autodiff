@@ -49,11 +49,11 @@ class Node:
         return Mul(self, other)
 
     def __matmul__(self, other):
-        from automatic_differentiation.src.core.ops import MatMul
+        from automatic_differentiation.src.core.high_level_ops import MatMul
         return MatMul(self, other)
 
     def __rmatmul__(self, other):
-        from automatic_differentiation.src.core.ops import MatMul
+        from automatic_differentiation.src.core.high_level_ops import MatMul
         return MatMul(other, self)
 
     def __imatmul__(self, other):
@@ -115,14 +115,14 @@ class Primitive(Node):
 
     def eval(self):
         if self.cached is None:
-            self.cached = self.f()
+            self.cached = self._eval()
 
         return self.cached
 
-    def f(self):
+    def _eval(self):
         raise NotImplementedError()
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         raise NotImplementedError()
 
 
@@ -133,7 +133,7 @@ class Variable(Primitive):
         super().__init__([], name)
 
         if isinstance(value, numbers.Number):
-            self._value = np.array(value)
+            self._value = np.array(value, dtype=np.float64)
         else:
             self._value = value
         self.shape = self._value.shape
@@ -146,12 +146,12 @@ class Variable(Primitive):
     def value(self, val):
         self.cached = self._value = val
 
-    def f(self):
+    def _eval(self):
         return self._value
 
-    def graph_df(self, wrt, curr_grad):
+    def partial_derivative(self, wrt, previous_grad):
         if self == wrt:
-            return curr_grad
+            return previous_grad
         return 0
 
 
@@ -159,20 +159,20 @@ def add_sum_name(node):
     return "'" + node.name + "' grad_sum"
 
 
-def grad(top_node, wrt_list, curr_grad=None):
+def grad(top_node, wrt_list, previous_grad=None):
     assert isinstance(wrt_list, list) or isinstance(wrt_list, tuple)
     from automatic_differentiation.src.core.ops import Add
-    if curr_grad is None:
-        curr_grad = Variable(1, name="init_grad")
+    if previous_grad is None:
+        previous_grad = Variable(np.ones(top_node.shape), name=add_sum_name(top_node))
 
     dct = collections.defaultdict(list)
-    dct[top_node].append(curr_grad)
+    dct[top_node].append(previous_grad)
 
     for node in top_node.reverse_topo_sort():
         dct[node] = Add(*dct[node], name=add_sum_name(node))
 
         for child in set(node.children):
-            app = node.graph_df(wrt=child, curr_grad=dct[node])
+            app = node.partial_derivative(wrt=child, previous_grad=dct[node])
             dct[child].append(app)
 
     return [dct[wrt] if isinstance(dct[wrt], Add) else Add(*dct[wrt], name=add_sum_name(wrt)) for wrt in wrt_list]
