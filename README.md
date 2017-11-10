@@ -16,6 +16,7 @@ Therefore, this project consist of implementation of an automated way to do that
 * Support for higher order tensors
 * Extensible code (it's easy to add your own operations)
 * Visualization of the computational graph
+* Numerical checks
 * Checkpointing
 
 Disclaimer: This is a proof of concept, rather than a usable framework. It's not optimized and you can probably break any of the things above if you try. 
@@ -38,11 +39,10 @@ Modules allow abstracting compositions of operations as just another operation. 
 
 __The cool part:__
 
-To get the gradient of some computational graph with respect to some variable, `Grad` module is used. 
-Grad is a *dynamically created Module*: it creates a new DAG based on the input node and the w.r.t. node.
-Since Grad is a Module and Module is inheriting from Node, it is possible to take the gradient of the gradient of a computational graph, and so on.
-
-Update: the last commit requires some description in the last two paragraphs to be corrected. For now, `grad` is not a `Module` and the `Module` changed a bit, but everything still works and the code is more elegant.
+Backpropagation is a higher-order function that maps one computational graph to another - the graph of the derivative.
+It doesn't use the information about derivatives at all, it's a function only of the graph structure!
+Since it dynamically creates computational graphs, you can take the gradient of the gradient at no extra cost!
+This is in contrast as to how backpropagation is usually presented and its inner mechanisms obscured with the many linear algebra operations. 
 
 ## Side note - what are really the first principles of learning mechanisms? 
 
