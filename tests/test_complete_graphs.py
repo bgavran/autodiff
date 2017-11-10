@@ -41,29 +41,40 @@ class TestMLP(TestCase):
     def test_all(self):
         my_vars = [self.my_x, self.my_w1, self.my_w2]
         tf_vars = [self.tf_x, self.tf_w1, self.tf_w2]
-        utils.test_one_op(self, self.my_graph, self.tf_graph, my_vars, tf_vars)
+        utils.custom_test(self, self.my_graph, my_vars, self.tf_graph, tf_vars)
 
 
-class TestBroadcastSumGrads(TestCase):
+class TestBroadcastElementwiseGrad(TestCase):
     def setUp(self):
         np.random.seed(1337)
         h_val = np.random.randn(2, 5)
         b0_val = np.random.randn(5)
         b1_val = np.random.randn(1, 5)
+        b2_val = 7
 
         self.my_h = ad.Variable(h_val, name="h")
         self.my_b0 = ad.Variable(b0_val, name="b0")
         self.my_b1 = ad.Variable(b1_val, name="b1")
+        self.my_b2 = ad.Variable(b2_val, name="b2")
 
         self.tf_h = tf.constant(h_val, dtype=tf.float64)
         self.tf_b0 = tf.constant(b0_val, dtype=tf.float64)
         self.tf_b1 = tf.constant(b1_val, dtype=tf.float64)
+        self.tf_b2 = tf.constant(b2_val, dtype=tf.float64)
 
-        self.my_o = ad.Sigmoid(self.my_h + self.my_b0 + self.my_b1)
-        self.tf_o = tf.nn.sigmoid(self.tf_h + self.tf_b0 + self.tf_b1)
+    def test_sum(self):
+        my_graph = self.my_h + self.my_b0 + self.my_b1 + self.my_b2
+        tf_graph = self.tf_h + self.tf_b0 + self.tf_b1 + self.tf_b2
+        wrt_vars = [self.my_b0, self.my_b1, self.my_b2]
+        tf_vars = [self.tf_b0, self.tf_b1, self.tf_b2]
+        utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
 
-    def test_op(self):
-        utils.test_one_op(self, self.my_o, self.tf_o, [self.my_b0, self.my_b1], [self.tf_b0, self.tf_b1])
+    def test_mul(self):
+        my_graph = self.my_h * self.my_b0 * self.my_b1 + self.my_b2
+        tf_graph = self.tf_h * self.tf_b0 * self.tf_b1 + self.tf_b2
+        wrt_vars = [self.my_b0, self.my_b1, self.my_b2]
+        tf_vars = [self.tf_b0, self.tf_b1, self.tf_b2]
+        utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
 
 
 class TestOperation(TestCase):
@@ -103,4 +114,4 @@ class TestOperation(TestCase):
     def test_all(self):
         my_vars = [self.my_x, self.my_w, self.my_b, self.var_mul]
         tf_vars = [self.tf_x, self.tf_w, self.tf_b, self.tf_mul]
-        utils.test_one_op(self, self.my_graph, self.tf_graph, my_vars, tf_vars)
+        utils.custom_test(self, self.my_graph, my_vars, self.tf_graph, tf_vars)
