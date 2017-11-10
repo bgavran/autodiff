@@ -58,14 +58,14 @@ class TestOneArgOperations(TestCase):
 
     def test_softmax0(self):
         # is this a correct test? Should the gradients always be this small?
-        my_graph = ad.Softmax2(self.my_w4)
+        my_graph = ad.Softmax(self.my_w4)
         tf_graph = tf.nn.softmax(self.tf_w4)
         wrt_vars = [self.my_w4]
         tf_vars = [self.tf_w4]
         utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
 
     def test_softmax1(self):
-        my_graph = ad.Softmax2(self.my_w5)
+        my_graph = ad.Softmax(self.my_w5)
         tf_graph = tf.nn.softmax(self.tf_w5)
         wrt_vars = [self.my_w5]
         tf_vars = [self.tf_w5]
