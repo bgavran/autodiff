@@ -80,5 +80,5 @@ def test_one_op(test, my_graph, tf_graph, my_wrt, tf_wrt, order=1):
 
 
 def custom_test(test, my_graph, my_wrt_vars, tf_graph=None, tf_wrt_vars=None):
-    test_one_op(test, my_graph, tf_graph, my_wrt_vars, tf_wrt_vars)
-    # ad.test_numeric(test, my_graph, my_wrt_vars)
+    # test_one_op(test, my_graph, tf_graph, my_wrt_vars, tf_wrt_vars)
+    ad.test_numeric(test, my_graph, my_wrt_vars)
