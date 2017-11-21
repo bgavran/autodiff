@@ -39,19 +39,39 @@ pip install .
 Example usage:
 
 ~~~~
+> import autodiff as ad
+>>> x = ad.Variable(3, name="x")
+>>> y = ad.Variable(4, name="y")
+>>> z = x * y + ad.Exp(x + 3)
+>>> z
+< autodiff.core.ops.Add object at 0x7fe91284f080>
+>>> z()
+array(415.4287934927351)
+>>> x_grad = ad.grad(z, [x])[0]
+>>> x_grad
+< autodiff.core.ops.Add object at 0x7fe9125ecc18>
+>>> x_grad()
+array(407.4287934927351)
+>>> z.plot_comp_graph()
+
+Plotting...
+~~~~
+
+![](/assets/comp_graph.png)
+
+
+Example with numpy arrays:
+
+~~~~
 >>> import numpy as np
 >>> import autodiff as ad
 >>> x = ad.Variable(np.random.randn(2, 3), name="x")
 >>> w = ad.Variable(np.random.randn(3, 5), name="w")
 >>> y = x @ w
->>> y
-< autodiff.core.ops.Einsum object at 0x7fe8870faef0>
 >>> y()
 array([[ 0.5323577 , -0.34353342,  1.33145506, -0.29360625, -1.56014675],
        [ 0.38069571,  0.40819971, -0.66564586,  0.16482348,  1.15585051]])
 >>> w_grad = ad.grad(y, [w])[0]
->>> w_grad
-< autodiff.core.ops.Add object at 0x7fe886f5cdd8>
 >>> w_grad()
 array([[-0.26209637, -0.26209637, -0.26209637, -0.26209637, -0.26209637],
        [ 0.61349261,  0.61349261,  0.61349261,  0.61349261,  0.61349261],
