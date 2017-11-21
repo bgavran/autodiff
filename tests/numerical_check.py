@@ -1,6 +1,5 @@
 import numpy as np
-from automatic_differentiation.src.core.grad import grad
-from automatic_differentiation.src.core.ops import Exp
+import automatic_differentiation as ad
 
 
 def uncache_subtree(node):
@@ -36,16 +35,16 @@ def numerical_gradient(graph, wrt_var, eps=1e-6):
 
 def differentiate_n_times_num(graph, wrt_vars, order):
     if order == 1:
-        backprop_graphs = grad(graph, wrt_vars)
+        backprop_graphs = ad.grad(graph, wrt_vars)
         numeric_grads = [numerical_gradient(graph, var) for var in wrt_vars]
     else:
         for o in range(order):
             if o == 0:
-                backprop_graphs = grad(graph, wrt_vars)
+                backprop_graphs = ad.grad(graph, wrt_vars)
             else:
                 if o == order - 1:
                     numeric_grads = [numerical_gradient(graph, var) for graph, var in zip(backprop_graphs, wrt_vars)]
-                backprop_graphs = [grad(graph, [var])[0] for graph, var in zip(backprop_graphs, wrt_vars)]
+                backprop_graphs = [ad.grad(graph, [var])[0] for graph, var in zip(backprop_graphs, wrt_vars)]
     return backprop_graphs, numeric_grads
 
 
@@ -72,6 +71,6 @@ def test_numeric(test, graph, wrt_vars, order=1):
     for deriv in range(1, order + 1):
         numerical_check(test, graph, wrt_vars, order=deriv)
 
-    extended_graph = Exp(graph, name="extra_exp_op")
+    extended_graph = ad.Exp(graph, name="extra_exp_op")
     for deriv in range(1, order + 1):
         numerical_check(test, extended_graph, wrt_vars, order=deriv)

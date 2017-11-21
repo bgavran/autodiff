@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
-from automatic_differentiation.src.core.grad import grad
-from automatic_differentiation.src.core.ops import Exp
-from automatic_differentiation.tests.numerical_check import test_numeric
+from ..core.ops import Exp
+from ..core.grad import grad
+from .numerical_check import test_numeric
 
 
 def differentiate_n_times(my_graph, tf_graph, my_vars, tf_vars, order=1, my_curr_grad=None, tf_curr_grad=None):
@@ -11,12 +11,12 @@ def differentiate_n_times(my_graph, tf_graph, my_vars, tf_vars, order=1, my_curr
 
     for i in range(order):
         if i == 0:
-            my_graphs = grad(my_graph, my_vars, previous_grad=my_curr_grad)
+            my_graphs = ad.grad(my_graph, my_vars, previous_grad=my_curr_grad)
             if tf_graph is not None:
                 tf_graphs = tf.gradients(tf_graph, tf_vars, grad_ys=tf_curr_grad)
         else:
             for i in range(len(my_graphs)):
-                my_graphs[i] = grad(my_graphs[i], [my_vars[i]])[0]
+                my_graphs[i] = ad.grad(my_graphs[i], [my_vars[i]])[0]
                 if tf_graphs[i] is not None:
                     tf_graphs[i] = tf.gradients(tf_graphs[i], tf_vars[i])[0]
     return my_graphs, tf_graphs
@@ -74,7 +74,7 @@ def test_one_op(test, my_graph, tf_graph, my_wrt, tf_wrt, order=1):
         print("    with random curr_grad    ")
         print("#############################")
 
-        my_extended_graph = Exp(my_graph, name="extra_exp_op")
+        my_extended_graph = ad.Exp(my_graph, name="extra_exp_op")
         tf_extended_graph = tf.exp(tf_graph, name="extra_exp_op")
         for deriv in range(1, order + 1):
             oneop_df_n_times(test, my_extended_graph, tf_extended_graph, my_wrt, tf_wrt, n=deriv)

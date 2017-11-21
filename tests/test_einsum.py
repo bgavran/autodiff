@@ -2,9 +2,9 @@ from unittest import TestCase
 
 import numpy as np
 import tensorflow as tf
-import automatic_differentiation as ad
 
-from tests import utils, numerical_check
+import automatic_differentiation as ad
+from tests import utils
 
 
 class TestEinSum(TestCase):
