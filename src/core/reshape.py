@@ -13,7 +13,7 @@ class ReduceSumKeepDims(Primitive):
     def _eval(self):
         return np.sum(self.node(), axis=self.axes, keepdims=True)
 
-    def partial_derivative(self, wrt, previous_grad):
+    def _partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
             return previous_grad * np.ones(self.node.shape)
         return 0
@@ -34,7 +34,7 @@ class Concat(Primitive):
         b_val = self.b()
         return np.concatenate((a_val, b_val), axis=self.axis)
 
-    def partial_derivative(self, wrt, previous_grad):
+    def _partial_derivative(self, wrt, previous_grad):
         previous_grad = Reshape(previous_grad, self.shape)  # in case it's just a scalar Variable
         split = self.a.shape[self.axis]
 
@@ -61,7 +61,7 @@ class Reshape(Primitive):
             return np.broadcast_to(node_val, self.shape)
         return np.reshape(node_val, self.shape)
 
-    def partial_derivative(self, wrt, previous_grad):
+    def _partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
             return Reshape(previous_grad, self.node.shape)
         return 0
@@ -96,25 +96,18 @@ class Slice(Primitive):
         self.node = self.children[0]
         self.slice_val = slice_val
 
-        self.shape = self().shape  # TODO fix hack
+        self.shape = np.zeros(self.node.shape)[self.slice_val].shape
 
     def _eval(self):
         val = self.node()
-        if isinstance(val, numbers.Number):
-            return val
         return val[self.slice_val]
 
-    def partial_derivative(self, wrt, previous_grad):
-        # TODO how to do this in a simple way? Also needs to support reversal of tensor ([::-1])
+    def _partial_derivative(self, wrt, previous_grad):
+        # TODO does it work for higher order derivatives, since previous_grad is evaluated here?
         if self.node == wrt:
-            previous_grad = Reshape(previous_grad, self.shape)  # in case it's just a scalar Variable
-
-            if isinstance(self.slice_val, list) or isinstance(self.slice_val, tuple):
-                pad_val = [[0 if sl.start is None else sl.start,
-                            0 if sl.stop is None else -sl.stop] for sl in self.slice_val]
-                return Pad(previous_grad, pad_val, constant_values=[0 for _ in self.slice_val])
-            else:
-                return previous_grad
+            grad = np.zeros(wrt.shape)
+            grad[self.slice_val] = previous_grad()
+            return grad
         return 0
 
 
@@ -138,7 +131,7 @@ class Pad(Primitive):
         val = self.node()
         return np.pad(val, self.pad_width, mode="constant", constant_values=self.constant_values)
 
-    def partial_derivative(self, wrt, previous_grad):
+    def _partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
             # problem: pad[1] is always positive here?
             # it seems impossible to guarantee that slice inputs will be negative?
@@ -146,3 +139,28 @@ class Pad(Primitive):
             slice_val = [slice(pad[0], pad[1]) for pad in self.pad_width]
             return previous_grad[slice_val]
         return 0
+
+#
+# class AsStrided(Primitive):
+#     def __init__(self, node, shape, strides):
+#         super().__init__([node], name="AsStrided")
+#         self.node = self.children[0]
+#         self.shape = shape
+#         self.strides = strides
+#
+#     def _eval(self):
+#         return as_strided(self.node(), shape=self.shape, strides=self.strides)
+#
+#     def partial_derivative(self, wrt, previous_grad):
+#         if self.node == wrt:  # TODO strides need to be known before graph evaluation?
+#             seq = np.arange(np.prod(self.node.shape)).reshape(*self.node.shape)
+#             as_stride = as_strided(seq, shape=self.shape, strides=self.strides)
+#             it = np.nditer(seq, flags=['multi_index'])
+#
+#             res = np.zeros(self.node.shape)
+#             while not it.finished:
+#                 ind = it.multi_index
+#                 res[ind] = ((as_stride == seq[ind]) * previous_grad()).sum()
+#                 it.iternext()
+#             return Variable(res)
+#         return 0
