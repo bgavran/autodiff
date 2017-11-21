@@ -1,7 +1,7 @@
-from automatic_differentiation.src.core.computational_graph import *
-from automatic_differentiation.src.core.ops import *
-from automatic_differentiation.src.core.reshape import *
-from automatic_differentiation.src.core.wrappers import *
+from .computational_graph import *
+from .ops import *
+from .reshape import *
+from .wrappers import *
 
 
 class Module:

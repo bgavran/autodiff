@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from ..core.ops import Exp
-from ..core.grad import grad
+import autodiff as ad
 from .numerical_check import test_numeric
 
 

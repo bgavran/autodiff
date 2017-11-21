@@ -26,7 +26,42 @@ I welcome any feedback on the project.
 
 Everything is implemented only in Python 3.6 and numpy and is a heavy Work In Progress.
 
+## Usage
+
+Clone the git repo and run the pip installer:
+
+~~~~
+git clone git@github.com:bgavran/autodiff.git
+cd autodiff
+pip install .
+~~~~
+
+Example usage:
+
+~~~~
+>>> import numpy as np
+>>> import autodiff as ad
+>>> x = ad.Variable(np.random.randn(2, 3), name="x")
+>>> w = ad.Variable(np.random.randn(3, 5), name="w")
+>>> y = x @ w
+>>> y
+< autodiff.core.ops.Einsum object at 0x7fe8870faef0>
+>>> y()
+array([[ 0.5323577 , -0.34353342,  1.33145506, -0.29360625, -1.56014675],
+       [ 0.38069571,  0.40819971, -0.66564586,  0.16482348,  1.15585051]])
+>>> w_grad = ad.grad(y, [w])[0]
+>>> w_grad
+< autodiff.core.ops.Add object at 0x7fe886f5cdd8>
+>>> w_grad()
+array([[-0.26209637, -0.26209637, -0.26209637, -0.26209637, -0.26209637],
+       [ 0.61349261,  0.61349261,  0.61349261,  0.61349261,  0.61349261],
+       [ 1.10694982,  1.10694982,  1.10694982,  1.10694982,  1.10694982]])
+~~~~
+
+
 ## Implementation details
+
+Autodiff is just a thin wrapper around numpy and uses it as the numerical kernel.
 
 An arbitrary neural network is implemented as a directed acyclic graph (DAG).
 

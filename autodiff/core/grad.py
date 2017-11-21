@@ -1,8 +1,8 @@
 import numpy as np
 import collections
-from automatic_differentiation.src.core.utils import reverse_topo_sort
-from automatic_differentiation.src.core.ops import Add
-from automatic_differentiation.src.core.computational_graph import Variable
+from .utils import reverse_topo_sort
+from .ops import Add
+from .computational_graph import Variable
 
 
 def add_sum_name(node):

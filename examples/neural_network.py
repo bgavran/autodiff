@@ -1,5 +1,5 @@
 import numpy as np
-import automatic_differentiation as ad
+import autodiff as ad
 import time
 
 from examples.pytorch_data_loader import MNIST

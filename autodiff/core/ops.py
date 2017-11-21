@@ -1,8 +1,8 @@
 import re
 import numpy as np
 import numbers
-from automatic_differentiation.src.core.computational_graph import Primitive, Variable
-from automatic_differentiation.src.core.reshape import ReduceSumKeepDims
+from .computational_graph import Primitive, Variable
+from .reshape import ReduceSumKeepDims
 
 from functools import reduce
 from string import ascii_lowercase

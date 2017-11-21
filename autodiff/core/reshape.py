@@ -1,6 +1,6 @@
 import numbers
 import numpy as np
-from automatic_differentiation.src.core.computational_graph import Primitive
+from .computational_graph import Primitive
 
 
 class ReduceSumKeepDims(Primitive):

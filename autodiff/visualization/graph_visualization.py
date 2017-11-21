@@ -1,6 +1,6 @@
 import numbers
 from graphviz import Digraph
-from automatic_differentiation.src.core.computational_graph import Variable
+from ..core.computational_graph import Variable
 
 
 def plot_comp_graph(top_node, view=False, name="comp_graph"):

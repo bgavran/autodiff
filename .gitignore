@@ -1,6 +1,6 @@
 # Added by bgavran3
 .idea
-src/sq_diff.pdf
+autodiff/sq_diff.pdf
 comp_graph
 # Byte-compiled / optimized / DLL files
 __pycache__/

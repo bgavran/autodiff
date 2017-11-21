@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import automatic_differentiation as ad
+import autodiff as ad
 
 x = ad.Variable(np.linspace(-7, 7, 200), name="x")
 

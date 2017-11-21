@@ -1,6 +1,6 @@
 from contextlib import contextmanager
-from automatic_differentiation.src.core.computational_graph import Node, Primitive
-from automatic_differentiation.src.core.grad import grad
+from .computational_graph import Node, Primitive
+from .grad import grad
 
 
 def checkpoint(fn):

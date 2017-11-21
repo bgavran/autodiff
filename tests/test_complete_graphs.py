@@ -3,7 +3,7 @@ from unittest import TestCase
 import numpy as np
 import tensorflow as tf
 
-import automatic_differentiation as ad
+import autodiff as ad
 from tests import utils
 
 

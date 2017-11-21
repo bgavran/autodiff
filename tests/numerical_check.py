@@ -1,5 +1,5 @@
 import numpy as np
-import automatic_differentiation as ad
+import autodiff as ad
 
 
 def uncache_subtree(node):
