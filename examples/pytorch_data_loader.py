@@ -7,11 +7,11 @@ class MNIST:
     def __init__(self, batch_size):
         self.batch_size = batch_size
 
-        train_dataset = dsets.MNIST(root="../data",
+        train_dataset = dsets.MNIST(root="./data",
                                     train=True,
                                     transform=transforms.ToTensor(),
                                     download=True)
-        test_dataset = dsets.MNIST(root="../data",
+        test_dataset = dsets.MNIST(root="./data",
                                    train=False,
                                    transform=transforms.ToTensor())
 
