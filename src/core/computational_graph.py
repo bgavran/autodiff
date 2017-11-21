@@ -1,31 +1,29 @@
+import time
 import numbers
 import numpy as np
-import collections
+from contextlib import contextmanager
+
+
+@contextmanager
+def add_context(ctx):
+    Node.context_list.append(ctx + "_" + str(time.time()))
+    try:
+        yield
+    finally:
+        del Node.context_list[-1]
 
 
 class Node:
     id = 0
+    context_list = []
 
     def __init__(self, children, name="Node"):
         self.children = [child if isinstance(child, Node) else Variable(child) for child in children]
         self.name = name
         self.id = Node.id
+        self.context_list = Node.context_list.copy()
 
         Node.id += 1
-
-    def reverse_topo_sort(self):
-        def topo_sort_dfs(node, visited, topo_sort):
-            if node in visited:
-                return topo_sort
-            visited.add(node)
-            for n in node.children:
-                topo_sort = topo_sort_dfs(n, visited, topo_sort)
-            return topo_sort + [node]
-
-        return reversed(topo_sort_dfs(self, set(), []))
-
-    def graph_name(self):
-        return str(self.id)
 
     def __str__(self):
         return self.name  # + " " + str(self.id)
@@ -79,27 +77,13 @@ class Node:
         for child in set(self.children):
             yield from child
 
-    def add_node_subgraph_to_plot_graph(self, digraph):
-        if self.graph_name() not in digraph.set_of_added_nodes:
-            digraph.add_node_with_context(self, [])
-
-            # Add connections to children, what if there's the same input twice to the operation?
-            for child in self.children:
-                digraph.add_edge(child, self)
-
-            # Make each of the children do the same
-            for child in self.children:
-                child.add_node_subgraph_to_plot_graph(digraph)
-
     def __getitem__(self, item):
         from automatic_differentiation.src.core.reshape import Slice
         return Slice(self, item)
 
-    def plot_comp_graph(self, view=True, name=None):
-        from automatic_differentiation.src.visualization.graph_visualization import plot_comp_graph
-        if name is None:
-            name = "comp_graph"
-        plot_comp_graph(self, view=view, name=name)
+    def plot_comp_graph(self, view=True, name="comp_graph"):
+        from automatic_differentiation.src.visualization import graph_visualization
+        graph_visualization.plot_comp_graph(self, view=view, name=name)
 
 
 class Primitive(Node):
@@ -122,8 +106,12 @@ class Primitive(Node):
     def _eval(self):
         raise NotImplementedError()
 
-    def partial_derivative(self, wrt, previous_grad):
+    def _partial_derivative(self, wrt, previous_grad):
         raise NotImplementedError()
+
+    def partial_derivative(self, wrt, previous_grad):
+        with add_context(self.name + "PD" + " wrt " + str(wrt)):
+            return self._partial_derivative(wrt, previous_grad)
 
 
 class Variable(Primitive):
@@ -149,30 +137,7 @@ class Variable(Primitive):
     def _eval(self):
         return self._value
 
-    def partial_derivative(self, wrt, previous_grad):
+    def _partial_derivative(self, wrt, previous_grad):
         if self == wrt:
             return previous_grad
         return 0
-
-
-def add_sum_name(node):
-    return "'" + node.name + "' grad_sum"
-
-
-def grad(top_node, wrt_list, previous_grad=None):
-    assert isinstance(wrt_list, list) or isinstance(wrt_list, tuple)
-    from automatic_differentiation.src.core.ops import Add
-    if previous_grad is None:
-        previous_grad = Variable(np.ones(top_node.shape), name=add_sum_name(top_node))
-
-    dct = collections.defaultdict(list)
-    dct[top_node].append(previous_grad)
-
-    for node in top_node.reverse_topo_sort():
-        dct[node] = Add(*dct[node], name=add_sum_name(node))
-
-        for child in set(node.children):
-            app = node.partial_derivative(wrt=child, previous_grad=dct[node])
-            dct[child].append(app)
-
-    return [dct[wrt] if isinstance(dct[wrt], Add) else Add(*dct[wrt], name=add_sum_name(wrt)) for wrt in wrt_list]
