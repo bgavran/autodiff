@@ -1,9 +1,15 @@
-import numpy as np
-import automatic_differentiation as ad
+from automatic_differentiation.src.core.computational_graph import *
+from automatic_differentiation.src.core.ops import *
+from automatic_differentiation.src.core.reshape import *
+from automatic_differentiation.src.core.wrappers import *
 
 
 class Module:
     def forward(self, *args, **kwargs):
+        with add_context(type(self).__name__):
+            return self._forward(*args, **kwargs)
+
+    def _forward(self, *args, **kwargs):
         raise NotImplementedError()
 
     def __call__(self, *args, **kwargs):
@@ -12,30 +18,43 @@ class Module:
 
 class NN(Module):
     def __init__(self, sizes):
+        if len(sizes) < 2:
+            raise ValueError("Sizes represent the layer sizes and needs to have at least two values for one weight"
+                             " matrix to exist!")
         self.sizes = sizes
         self.w = []
         for i, (inp, out) in enumerate(zip(self.sizes, self.sizes[1:])):
-            w_initial = np.random.randn(inp + 1, out)
-            w = ad.Variable(w_initial, name="w" + str(i))
+            w_initial = np.random.randn(inp + 1, out) * 0.01
+            w = Variable(w_initial, name="w" + str(i))
             self.w.append(w)
 
-    def forward(self, x):
+    def _forward(self, x):
         first_dim = x.shape[0]
-        bias = ad.Variable(np.ones((first_dim, 1)), name="bias")
+        bias = Variable(np.ones((first_dim, 1)), name="bias")
         for i, w in enumerate(self.w):
-            x = ad.Concat(x, bias, axis=1)
+            x = Concat(x, bias, axis=1)
             x = x @ w
             if i < len(self.w) - 1:
-                x = ad.ReLU(x)
+                x = ReLU(x)
         return x
 
 
-class SGDOptimizer(Module):
+class Optimizer(Module):
+    @staticmethod
+    def apply_new_weights(weight_list, new_weight_values):
+        for w, new_w_value in zip(weight_list, new_weight_values):
+            w.value = new_w_value
+
+    def _forward(self, *args, **kwargs):
+        raise NotImplementedError()
+
+
+class SGDOptimizer(Optimizer):
     def __init__(self, lr=0.001):
         # Doesn't have a state, which means it isn't tied to a specific problem
         self.lr = lr
 
-    def forward(self, params_list, grads_list):
+    def _forward(self, params_list, grads_list):
         return [self.fn(param, grad) for param, grad in zip(params_list, grads_list)]
 
     def fn(self, param, grad):
@@ -43,7 +62,7 @@ class SGDOptimizer(Module):
 
 
 # TODO test these optimization methods!
-class Momentum(Module):
+class Momentum(Optimizer):
     """
     Accumulates gradient change through time steps
     """
@@ -54,7 +73,7 @@ class Momentum(Module):
         self.gamma = gamma
         self.v = [0 for _ in range(num_params)]
 
-    def forward(self, params_list, grads_list):
+    def _forward(self, params_list, grads_list):
         for i, (param, grad) in enumerate(zip(params_list, grads_list)):
             params_list[i], self.v[i] = self.fn(self.v[i], param, grad)
         return params_list
@@ -64,7 +83,7 @@ class Momentum(Module):
         return param - self.lr * new_m, new_m
 
 
-class Adagrad(Module):
+class Adagrad(Optimizer):
     """
     Different learning rate for each parameter!
     The lr value is the same, but each parameter divides it by its own sqrt of something
@@ -76,7 +95,7 @@ class Adagrad(Module):
         self.lr = lr
         self.run_avg = [0 for _ in range(num_params)]
 
-    def forward(self, params_list, grads_list):
+    def _forward(self, params_list, grads_list):
         for i, (param, grad) in enumerate(zip(params_list, grads_list)):
             params_list[i], self.run_avg[i] = self.fn(self.run_avg[i], param, grad)
         return params_list
@@ -87,7 +106,7 @@ class Adagrad(Module):
         return new_param, new_avg
 
 
-class Adam(Module):
+class Adam(Optimizer):
     eps = 1e-8
 
     def __init__(self, num_params, lr=0.001, b1=0.9, b2=0.999):
@@ -99,7 +118,7 @@ class Adam(Module):
         self.v = [0 for _ in range(num_params)]
         self.step = 0
 
-    def forward(self, params_list, grads_list):
+    def _forward(self, params_list, grads_list):
         for i, (param, grad) in enumerate(zip(params_list, grads_list)):
             params_list[i], self.m[i], self.v[i] = self.fn(self.step, self.m[i], self.v[i], param, grad)
         self.step += 1
@@ -113,7 +132,7 @@ class Adam(Module):
         return new_param, new_m, new_v
 
 
-class NesterovMomentum(Module):
+class NesterovMomentum(Optimizer):
     """
     Doesn't just use the gradient, but requires it's evaluation on a point that depends on the self.v parameter?
     """
@@ -126,7 +145,7 @@ class NesterovMomentum(Module):
         self.gamma = gamma
         self.v = [0 for _ in range(num_params)]
 
-    def forward(self, params_list, grads_list):
+    def _forward(self, params_list, grads_list):
         for i, (param, grad) in enumerate(zip(params_list, grads_list)):
             params_list[i], self.v[i] = self.fn(self.v[i], param, grad)
         return params_list
@@ -134,8 +153,8 @@ class NesterovMomentum(Module):
 
 # TODO better way to implement these two functions?
 class Tanh(Module):
-    def forward(self, x):
-        val = ad.Exp(-2 * x)
+    def _forward(self, x):
+        val = Exp(-2 * x)
         return (1 - val) / (1 + val)
 
 
@@ -143,20 +162,60 @@ Tanh = Tanh()
 
 
 class SquaredDifference(Module):
-    def forward(self, x, y):
+    def _forward(self, x, y):
         diff = x - y
-        return diff ** 2
+        return diff * diff
 
 
 SquaredDifference = SquaredDifference()
+
+
+class TestMod(Module):
+    def _forward(self, x):
+        a = Add(x, 1, name="ADD")
+        return Mul(a, a, a)
+
+
+TestMod = TestMod()
 
 
 class MatMul(Module):
     def __init__(self):
         self.op_str = "ij,jk->ik"
 
-    def forward(self, a, b):
-        return ad.Einsum(self.op_str, a, b)
+    def _forward(self, a, b):
+        return Einsum(self.op_str, a, b)
 
 
 MatMul = MatMul()
+
+
+class Softmax2(Module):
+    def __init__(self):
+        pass
+
+    def _forward(self, node):
+        # TODO make this numerically stable by shifting by max?
+        exp = Exp(node)
+        if len(node.shape) == 1:  # workaround because numpy einsum can't broadcast?
+            return exp / Einsum("i->", exp)
+        else:
+            return exp / Einsum("bi,o->bo", exp, np.array([1]))
+
+
+Softmax2 = Softmax2()
+
+# class Convolution(Module):
+#     def _forward(self, x, w):
+#         shp = tuple(np.subtract(x.shape, w.shape[:-1]) + 1) + (w.shape[-1],)
+#         s = w.shape[:-1] + shp[:-1]
+#
+#         strides = x().strides * 2  # TODO x is evaluated here!
+#         subm = AsStrided(x, shape=s, strides=strides)
+#
+#         w_let = letters_from_tuple(w.shape)
+#         op_str = w_let + "," + w_let[:-1] + "...->" + w_let[-1] + "..."
+#         return Einsum(op_str, w, subm)
+#
+#
+# Convolution = Convolution()
