@@ -80,16 +80,7 @@ class Reshape(Primitive):
 # TODO does slicing really work as it should?! Higher order gradients seem wrong?
 
 class Slice(Primitive):
-    # TODO slicing with the double dot operator?
     def __init__(self, node, slice_val, name="Slice"):
-        # stop value must be negative and step must be None (constraint of current implementation)
-
-        # cond = lambda slc: (slc.stop is None or slc.stop < 0) and slc.step is None
-        # if isinstance(slice_val, tuple) or isinstance(slice_val, list):
-        # for sl in slice_val:
-        #     assert cond(sl)
-        # else:
-        # assert cond(slice_val)
         if name is None:
             name = str(slice_val)
         super().__init__([node], name)
@@ -125,18 +116,21 @@ class Pad(Primitive):
         self.pad_width = pad_width
         self.constant_values = constant_values
 
-        self.shape = self.node.shape  # TODO fix this line!
+        self.shape = np.pad(np.ones(self.node.shape),
+                            self.pad_width,
+                            mode="constant",
+                            constant_values=self.constant_values).shape
 
     def _eval(self):
         val = self.node()
-        return np.pad(val, self.pad_width, mode="constant", constant_values=self.constant_values)
+        return np.pad(val,
+                      self.pad_width,
+                      mode="constant",
+                      constant_values=self.constant_values)
 
     def _partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
-            # problem: pad[1] is always positive here?
-            # it seems impossible to guarantee that slice inputs will be negative?
-            # TODO there seems to be a need for a more fundamental solution to this!
-            slice_val = [slice(pad[0], pad[1]) for pad in self.pad_width]
+            slice_val = [slice(pad[0], shp - pad[1]) for pad,shp in zip(self.pad_width, self.shape)]
             return previous_grad[slice_val]
         return 0
 
