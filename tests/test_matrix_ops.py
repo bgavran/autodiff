@@ -37,6 +37,16 @@ class TestOneArgOperations(TestCase):
         self.my_w4 = ad.Variable(self.w4_val, name="w4_val")
         self.my_w5 = ad.Variable(self.w5_val, name="w5_val")
 
+    # def test_as_strided(self):
+    #     window_size = 3
+    #     stride = self.my_w5().strides[
+    #         0]
+    #     my_graph = ad.AsStrided(self.my_w5,
+    #                             shape=[self.my_w5.shape[0] - window_size + 1, window_size],
+    #                             strides=[stride, stride])
+    #     wrt_vars = [self.my_w5]
+    #     utils.custom_test(self, my_graph, wrt_vars)
+
     def test_normal_distribution(self):
         my_graph = ad.NormalDistribution(self.w5_val, 0, 1)
         wrt_vars = [self.my_w5]
@@ -91,6 +101,34 @@ class TestOneArgOperations(TestCase):
     def test_slice1(self):
         my_graph = self.my_w1[:, :-1]
         tf_graph = self.tf_w1[:, :-1]
+        wrt_vars = [self.my_w1]
+        tf_vars = [self.tf_w1]
+        utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
+
+    def test_slice2(self):
+        my_graph = self.my_w1[0, 0]
+        tf_graph = self.tf_w1[0, 0]
+        wrt_vars = [self.my_w1]
+        tf_vars = [self.tf_w1]
+        utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
+
+    def test_slice3(self):
+        my_graph = self.my_w1[2, 2:4]
+        tf_graph = self.tf_w1[2, 2:4]
+        wrt_vars = [self.my_w1]
+        tf_vars = [self.tf_w1]
+        utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
+
+    def test_slice4(self):
+        my_graph = self.my_w1[1]
+        tf_graph = self.tf_w1[1]
+        wrt_vars = [self.my_w1]
+        tf_vars = [self.tf_w1]
+        utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
+
+    def test_slice5(self):
+        my_graph = self.my_w1[::-2]
+        tf_graph = self.tf_w1[::-2]
         wrt_vars = [self.my_w1]
         tf_vars = [self.tf_w1]
         utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
