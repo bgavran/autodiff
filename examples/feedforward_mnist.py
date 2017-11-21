@@ -7,7 +7,7 @@ from examples.pytorch_data_loader import MNIST
 input_size = 784
 hidden_size = 32
 out_size = 10
-nn = ad.NN([input_size, out_size])
+nn = ad.NN([input_size, hidden_size, out_size])
 optimizer = ad.Adam(len(nn.w), lr=0.001)
 
 batch_size = 100
@@ -30,8 +30,8 @@ for epoch in range(2):
         optimizer.apply_new_weights(nn.w, new_w_list)
 
         if step % 100 == 0:
-            text = "step {}, cost {:.2f}, grad norm {:.2f}, time {:.2f}"
-            print(text.format(step, cost(), ad.FrobeniusNorm(*w_list_grads)(), time.time() - start))
+            text = "epoch {}, step {}, cost {:.2f}, grad norm {:.2f}, time {:.2f}"
+            print(text.format(epoch, step, cost(), ad.FrobeniusNorm(*w_list_grads)(), time.time() - start))
             start = time.time()
 
 

@@ -38,8 +38,8 @@ pip install .
 
 Example usage:
 
-~~~~
-> import autodiff as ad
+```python
+>>> import autodiff as ad
 >>> x = ad.Variable(3, name="x")
 >>> y = ad.Variable(4, name="y")
 >>> z = x * y + ad.Exp(x + 3)
@@ -55,14 +55,14 @@ array(407.4287934927351)
 >>> z.plot_comp_graph()
 
 Plotting...
-~~~~
+```
 
 ![](/assets/comp_graph.png)
 
 
 Example with numpy arrays:
 
-~~~~
+```python
 >>> import numpy as np
 >>> import autodiff as ad
 >>> x = ad.Variable(np.random.randn(2, 3), name="x")
@@ -76,7 +76,7 @@ array([[ 0.5323577 , -0.34353342,  1.33145506, -0.29360625, -1.56014675],
 array([[-0.26209637, -0.26209637, -0.26209637, -0.26209637, -0.26209637],
        [ 0.61349261,  0.61349261,  0.61349261,  0.61349261,  0.61349261],
        [ 1.10694982,  1.10694982,  1.10694982,  1.10694982,  1.10694982]])
-~~~~
+```
 
 
 ## Implementation details
