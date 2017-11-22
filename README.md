@@ -31,7 +31,7 @@ Everything is implemented only in Python 3.6 and numpy and is a heavy Work In Pr
 Clone the git repo and run the pip installer:
 
 ~~~~
-git clone git@github.com:bgavran/autodiff.git
+git clone https://github.com/bgavran/autodiff.git
 cd autodiff
 pip install .
 ~~~~
