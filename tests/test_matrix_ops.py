@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 import autodiff as ad
-from tests import utils
+import utils
 
 
 class TestOneArgOperations(TestCase):
@@ -19,7 +19,9 @@ class TestOneArgOperations(TestCase):
         self.w2_val = np.random.rand(10, 3)
         self.w3_val = np.random.rand(10, 5)
         self.w4_val = np.random.rand(10, 5)
-        self.w5_val = np.random.rand(15)
+        self.w5_val = np.linspace(-7, 7, 200)
+        # self.w5_val = np.random.rand(15)
+        self.w6_val = np.random.rand(2, 3, 5, 7)
 
         self.w3_val /= np.expand_dims(np.sum(self.w3_val, axis=1), axis=1)  # w3 is a probability distribution
 
@@ -29,6 +31,7 @@ class TestOneArgOperations(TestCase):
         self.tf_w3 = tf.constant(self.w3_val, dtype=tf.float64)
         self.tf_w4 = tf.constant(self.w4_val, dtype=tf.float64)
         self.tf_w5 = tf.constant(self.w5_val, dtype=tf.float64)
+        self.tf_w6 = tf.constant(self.w6_val, dtype=tf.float64)
 
         self.my_w0 = ad.Variable(self.w0_val, name="w0_val")
         self.my_w1 = ad.Variable(self.w1_val, name="w1_val")
@@ -36,6 +39,7 @@ class TestOneArgOperations(TestCase):
         self.my_w3 = ad.Variable(self.w3_val, name="w3_val")
         self.my_w4 = ad.Variable(self.w4_val, name="w4_val")
         self.my_w5 = ad.Variable(self.w5_val, name="w5_val")
+        self.my_w6 = ad.Variable(self.w6_val, name="w6_val")
 
     # def test_as_strided(self):
     #     window_size = 3
@@ -48,7 +52,7 @@ class TestOneArgOperations(TestCase):
     #     utils.custom_test(self, my_graph, wrt_vars)
 
     def test_normal_distribution(self):
-        my_graph = ad.NormalDistribution(self.w5_val, 0, 1)
+        my_graph = ad.NormalDistribution(self.my_w5, 0, 1)
         wrt_vars = [self.my_w5]
         utils.custom_test(self, my_graph, wrt_vars)
 
@@ -79,6 +83,13 @@ class TestOneArgOperations(TestCase):
         tf_graph = tf.nn.softmax(self.tf_w5)
         wrt_vars = [self.my_w5]
         tf_vars = [self.tf_w5]
+        utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
+
+    def test_softmax2(self):
+        my_graph = ad.Softmax(self.my_w6)
+        tf_graph = tf.nn.softmax(self.tf_w6)
+        wrt_vars = [self.my_w6]
+        tf_vars = [self.tf_w6]
         utils.custom_test(self, my_graph, wrt_vars, tf_graph, tf_vars)
 
     def test_reshape(self):

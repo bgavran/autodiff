@@ -150,61 +150,6 @@ class NesterovMomentum(Optimizer):
             params_list[i], self.v[i] = self.fn(self.v[i], param, grad)
         return params_list
 
-
-# TODO better way to implement these two functions?
-class Tanh(Module):
-    def _forward(self, x):
-        val = Exp(-2 * x)
-        return (1 - val) / (1 + val)
-
-
-Tanh = Tanh()
-
-
-class SquaredDifference(Module):
-    def _forward(self, x, y):
-        diff = x - y
-        return diff * diff
-
-
-SquaredDifference = SquaredDifference()
-
-
-class TestMod(Module):
-    def _forward(self, x):
-        a = Add(x, 1, name="ADD")
-        return Mul(a, a, a)
-
-
-TestMod = TestMod()
-
-
-class MatMul(Module):
-    def __init__(self):
-        self.op_str = "ij,jk->ik"
-
-    def _forward(self, a, b):
-        return Einsum(self.op_str, a, b)
-
-
-MatMul = MatMul()
-
-
-class Softmax2(Module):
-    def __init__(self):
-        pass
-
-    def _forward(self, node):
-        # TODO make this numerically stable by shifting by max?
-        exp = Exp(node)
-        if len(node.shape) == 1:  # workaround because numpy einsum can't broadcast?
-            return exp / Einsum("i->", exp)
-        else:
-            return exp / Einsum("bi,o->bo", exp, np.array([1]))
-
-
-Softmax2 = Softmax2()
-
 # class Convolution(Module):
 #     def _forward(self, x, w):
 #         shp = tuple(np.subtract(x.shape, w.shape[:-1]) + 1) + (w.shape[-1],)
