@@ -14,16 +14,42 @@ def add_context(ctx):
 
 
 class Node:
+    epsilon = 1e-12
     id = 0
     context_list = []
 
     def __init__(self, children, name="Node"):
         self.children = [child if isinstance(child, Node) else Variable(child) for child in children]
         self.name = name
+        self.cached = None
+        self.shape = None
+
         self.id = Node.id
+        Node.id += 1
         self.context_list = Node.context_list.copy()
 
-        Node.id += 1
+    def _eval(self):
+        raise NotImplementedError()
+
+    def _partial_derivative(self, wrt, previous_grad):
+        raise NotImplementedError()
+
+    def eval(self):
+        if self.cached is None:
+            self.cached = self._eval()
+
+        return self.cached
+
+    def partial_derivative(self, wrt, previous_grad):
+        with add_context(self.name + "PD" + " wrt " + str(wrt)):
+            return self._partial_derivative(wrt, previous_grad)
+
+    def plot_comp_graph(self, view=True, name="comp_graph"):
+        from ..visualization import graph_visualization
+        graph_visualization.plot_comp_graph(self, view=view, name=name)
+
+    def __call__(self, *args, **kwargs):
+        return self.eval()
 
     def __str__(self):
         return self.name  # + " " + str(self.id)
@@ -72,49 +98,12 @@ class Node:
     __rmul__ = __mul__
     __radd__ = __add__
 
-    def __iter__(self):
-        yield self
-        for child in set(self.children):
-            yield from child
-
     def __getitem__(self, item):
         from .reshape import Slice
         return Slice(self, item)
 
-    def plot_comp_graph(self, view=True, name="comp_graph"):
-        from ..visualization import graph_visualization
-        graph_visualization.plot_comp_graph(self, view=view, name=name)
 
-
-class Primitive(Node):
-    epsilon = 1e-12
-
-    def __init__(self, children, name=""):
-        super().__init__(children, name)
-        self.cached = None
-        self.shape = None
-
-    def __call__(self, *args, **kwargs):
-        return self.eval()
-
-    def eval(self):
-        if self.cached is None:
-            self.cached = self._eval()
-
-        return self.cached
-
-    def _eval(self):
-        raise NotImplementedError()
-
-    def _partial_derivative(self, wrt, previous_grad):
-        raise NotImplementedError()
-
-    def partial_derivative(self, wrt, previous_grad):
-        with add_context(self.name + "PD" + " wrt " + str(wrt)):
-            return self._partial_derivative(wrt, previous_grad)
-
-
-class Variable(Primitive):
+class Variable(Node):
     def __init__(self, value, name=None):
         if name is None:
             name = str(value)  # this op is really slow for np.arrays?!

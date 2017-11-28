@@ -19,12 +19,14 @@ Therefore, this project consist of implementation of an automated way to do that
 * Numerical checks
 * Checkpointing
 
+Check out the `examples` directory to see it in action!
+
 Disclaimer: This is a proof of concept, rather than a usable framework. It's not optimized and you can probably break any of the things above if you try. 
 Foundations are there but I'm still trying understand how [good code](https://xkcd.com/844/) should look.
 
 I welcome any feedback on the project.
 
-Everything is implemented only in Python 3.6 and numpy and is a heavy Work In Progress.
+Everything is implemented only in Python 3.6 and numpy.
 
 ## Usage
 
@@ -89,12 +91,15 @@ In this graph, a node represents some mathematical operation and directed edges 
 
 Composition of outputs of two nodes yields a new Node - operations are closed under composition.
 
-Node can directly implement its mathematical operation - class `Primitive` - or it can use other, existing nodes - class `Module`.
-Modules allow abstracting compositions of operations as just another operation. Modules also allow arbitrarily deep hierarchical nesting of operations.
+All operations extend Node and implement its forward and backward pass.
+Nodes can be grouped together in a `Module` - a structure which allows easy reusability of composition of nodes.
+Modules can be nested in an arbitrarily deep hierarchy.
+
+To get the gradient of a function - you use `grad`.
 
 __The cool part:__
 
-Backpropagation is a higher-order function that maps one computational graph to another - the graph of the derivative.
+`grad` is a higher-order function that maps one computational graph to another - the graph of the derivative.
 It doesn't use the information about derivatives at all, it's a function only of the graph structure!
 Since it dynamically creates computational graphs, you can take the gradient of the gradient at no extra cost!
 This is in contrast as to how backpropagation is usually presented and its inner mechanisms obscured with the many linear algebra operations. 
@@ -132,4 +137,4 @@ Obviously, the principle "oh we just take the gradient and change it a bit befor
 
 ---
 
-Visualization idea and inspiration taken from [HIPS autograd](https://github.com/HIPS/autograd).
+Tanh visualization idea and inspiration taken from [HIPS autograd](https://github.com/HIPS/autograd).
