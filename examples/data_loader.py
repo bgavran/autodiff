@@ -3,6 +3,8 @@ import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 
 
+# Using PyTorch dataloader to load up MNIST :)
+
 class MNIST:
     def __init__(self, batch_size):
         self.batch_size = batch_size

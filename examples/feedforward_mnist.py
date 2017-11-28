@@ -2,12 +2,12 @@ import numpy as np
 import autodiff as ad
 import time
 
-from examples.pytorch_data_loader import MNIST
+from examples.data_loader import MNIST
 
 input_size = 784
 hidden_size = 32
 out_size = 10
-nn = ad.NN([input_size, hidden_size, out_size])
+nn = ad.NN([input_size, hidden_size, out_size])  # three layer neural network
 optimizer = ad.Adam(len(nn.w), lr=0.001)
 
 batch_size = 100
