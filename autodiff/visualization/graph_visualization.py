@@ -1,6 +1,6 @@
 import numbers
 from graphviz import Digraph
-from ..core.computational_graph import Variable
+from ..core.node import Variable
 
 
 def plot_comp_graph(top_node, view=False, name="comp_graph"):

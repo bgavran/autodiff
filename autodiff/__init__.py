@@ -1,4 +1,4 @@
-from .core.computational_graph import Node, Variable, Primitive
+from .core.node import Node, Variable, Node
 from .core.ops import *
 from .core.reshape import *
 from .core.high_level_ops import *

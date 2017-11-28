@@ -1,11 +1,19 @@
 import re
 import numpy as np
 import numbers
-from .computational_graph import Primitive, Variable
+from .node import Node, Variable, add_context
 from .reshape import ReduceSumKeepDims
 
 from functools import reduce
 from string import ascii_lowercase
+
+
+def module_wrapper(fn):
+    def wrap_in_context(*args, **kwargs):
+        with add_context(fn.__name__):
+            return fn(*args, **kwargs)
+
+    return wrap_in_context
 
 
 def letters_from_tuple(tpl):
@@ -18,7 +26,8 @@ def shape_from_elems(*elems):
     return np.broadcast(*[np.ones(elem.shape) for elem in elems]).shape
 
 
-def reduce_sum_to_shape(tensor, to_shape):
+@module_wrapper
+def ReduceSumToShape(tensor, to_shape):
     if tensor.shape == to_shape:
         return tensor
     previous_grad_letters = letters_from_tuple(tensor.shape)
@@ -32,7 +41,7 @@ def reduce_sum_to_shape(tensor, to_shape):
     return reduced_sum_grad
 
 
-class Add(Primitive):
+class Add(Node):
     def __init__(self, *elems, name="Add"):
         if not elems:
             name = "0-" + name
@@ -49,10 +58,10 @@ class Add(Primitive):
 
         wrt_count = self.children.count(wrt)
         grad = previous_grad * Variable(wrt_count)
-        return reduce_sum_to_shape(grad, wrt.shape)
+        return ReduceSumToShape(grad, wrt.shape)
 
 
-class Mul(Primitive):
+class Mul(Node):
     fn = lambda x, y: x * y
 
     def __init__(self, *elems, name="Mul"):
@@ -74,10 +83,10 @@ class Mul(Primitive):
                 add_list.append(Mul(*[ch for i, ch in enumerate(self.children) if loc != i]))
 
         grad = previous_grad * Add(*add_list)
-        return reduce_sum_to_shape(grad, wrt.shape)
+        return ReduceSumToShape(grad, wrt.shape)
 
 
-class Negate(Primitive):
+class Negate(Node):
     def __init__(self, node, name="Negate"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -93,7 +102,7 @@ class Negate(Primitive):
             return 0
 
 
-class Recipr(Primitive):
+class Recipr(Node):
     def __init__(self, node, name="Reciprocal"):
         """
         Elementwise reciprocal
@@ -104,7 +113,7 @@ class Recipr(Primitive):
         self.shape = self.node.shape
 
     def _eval(self):
-        return 1 / (self.node() + Primitive.epsilon)
+        return 1 / (self.node() + Node.epsilon)
 
     def _partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
@@ -112,7 +121,7 @@ class Recipr(Primitive):
         return 0
 
 
-class Transpose(Primitive):
+class Transpose(Node):
     def __init__(self, node, name="Transpose"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -127,7 +136,7 @@ class Transpose(Primitive):
         return 0
 
 
-class Einsum(Primitive):
+class Einsum(Node):
     def __init__(self, op_str, *operands, name="EinSum"):
         super().__init__(list(operands), name + " " + op_str)
         # TODO ellipsis currently can't be in the middle of op_letters!
@@ -168,6 +177,7 @@ class Einsum(Primitive):
         for let in Einsum.split_dots(self.opnames[-1]):
             for l in self.letter_to_dim.get(let, [1]):
                 self.shape.append(l)
+        self.shape = tuple(self.shape)
 
     @staticmethod
     def split_dots(op_str):
@@ -222,7 +232,7 @@ class Einsum(Primitive):
         return ",".join(list_of_ops[:-1]) + "->" + list_of_ops[-1]
 
 
-class ReLU(Primitive):
+class ReLU(Node):
     def __init__(self, node, name="ReLU"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -238,53 +248,7 @@ class ReLU(Primitive):
         return 0
 
 
-class Softmax(Primitive):
-    """
-    Softmax is a vector function: R^n -> R^n and taking its partial derivative w.r.t. input is a Jacobian matrix.
-
-    """
-
-    def __init__(self, node, name="Softmax"):
-        super().__init__([node], name)
-        self.node = self.children[0]
-        self.shape = self.node.shape
-
-    def _eval(self):
-        """
-
-        Subtracting the max of last axis from each element in softmax.
-        Dividing the exp(node) by the sum of exp(node) for all nodes.
-        Thes "one" variable is added so we can use softmax on tensors of arbitrarily high dimensions and sum back their
-        last axis
-
-        """
-        val = self.node()
-        shifted_exp = np.exp(val - np.expand_dims(np.max(val, axis=-1), axis=-1))
-
-        # using my Einsum instead of numpy's since mine broadcasts them in a way that works well for autodiff
-        shifted_exp_var = Variable(shifted_exp, name="shifted_exp")
-        one_var = Variable(np.array([1]), name="1")
-        last_axis_sum = Einsum("...j,o->...o", shifted_exp_var, one_var)()
-        return shifted_exp / last_axis_sum
-
-    def _partial_derivative(self, wrt, previous_grad):
-        # TODO higher order gradients don't work because Einsum grad can't be taken if ellipsis is used!
-        if wrt == self.node:
-            # matrix of the self outer product
-            outer = Einsum("...i,...j->...ij", previous_grad * self, self)
-
-            # summ = reduce_grad(previous_grad, Variable(np.zeros(self.shape[-1])))
-            ones_diag = Variable(np.eye(self.shape[-1]), "einsum_ones")
-            # matrix where the only nonzero elements are the softmax vector on the diagonal
-            # ij subscripts are both the same size, but np.einsum doesn't allow them with the same label
-            kronecker_val = Einsum("ij,...j->...ij", ones_diag, self)
-
-            a = Einsum("...ij->...j", kronecker_val - outer)
-            return a
-        return 0
-
-
-class SoftmaxCEWithLogits(Primitive):
+class SoftmaxCEWithLogits(Node):
     def __init__(self, labels, logits, name="SoftmaxCEWithLogits"):
         super().__init__([labels, logits], name=name)
         self.labels, self.logits = self.children
@@ -313,7 +277,7 @@ class SoftmaxCEWithLogits(Primitive):
         return 0
 
 
-class SigmoidCEWithLogits(Primitive):
+class SigmoidCEWithLogits(Node):
     def __init__(self, labels, logits, name="SigmoidCEWithLogits"):
         super().__init__([labels, logits], name)
         self.labels, self.logits = self.children
@@ -330,7 +294,7 @@ class SigmoidCEWithLogits(Primitive):
         return 0
 
 
-class Pow(Primitive):
+class Pow(Node):
     def __init__(self, first, second, name="Pow"):
         super().__init__([first, second], name)
         self.first = self.children[0]
@@ -350,14 +314,14 @@ class Pow(Primitive):
         return 0
 
 
-class Log(Primitive):
+class Log(Node):
     def __init__(self, node, name="Log"):
         super().__init__([node], name)
         self.node = self.children[0]
         self.shape = self.node.shape
 
     def _eval(self):
-        return np.log(self.node() + Primitive.epsilon)
+        return np.log(self.node() + Node.epsilon)
 
     def _partial_derivative(self, wrt, previous_grad):
         if self.node == wrt:
@@ -365,7 +329,7 @@ class Log(Primitive):
         return 0
 
 
-class Identity(Primitive):
+class Identity(Node):
     def __init__(self, node, name="Identity"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -380,7 +344,7 @@ class Identity(Primitive):
         return 0
 
 
-class Exp(Primitive):
+class Exp(Node):
     def __init__(self, node, name="Exp"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -395,7 +359,7 @@ class Exp(Primitive):
         return 0
 
 
-class Sigmoid(Primitive):
+class Sigmoid(Node):
     def __init__(self, node, name="Sigmoid"):
         super().__init__([node], name=name)
         self.node = self.children[0]
@@ -410,7 +374,7 @@ class Sigmoid(Primitive):
         return 0
 
 
-class FrobeniusNorm(Primitive):
+class FrobeniusNorm(Node):
     def __init__(self, *nodes, name="Frobenius Norm"):
         super().__init__(list(nodes), name=name)
         self.nodes = self.children
@@ -427,7 +391,7 @@ class FrobeniusNorm(Primitive):
         return previous_grad * self.nodes[loc] / self
 
 
-class NormalDistribution(Primitive):
+class NormalDistribution(Node):
     def __init__(self, node, mean=0, variance=1, name="Normal Distribution"):
         super().__init__([node], name=name)
         self.node = self.children[0]
@@ -445,3 +409,36 @@ class NormalDistribution(Primitive):
         if self.node == wrt:
             return -previous_grad * self.node * self
         return 0
+
+
+@module_wrapper
+def Tanh(x):
+    val = Exp(-2 * x)
+    return (1 - val) / (1 + val)
+
+
+@module_wrapper
+def SquaredDifference(x, y):
+    diff = x - y
+    return diff * diff
+
+
+@module_wrapper
+def MatMul(x, y):
+    return Einsum("ij,jk->ik", x, y)
+
+
+@module_wrapper
+def Softmax(x):
+    # TODO make this numerically stable by shifting by max?
+    exp = Exp(x)
+    if len(x.shape) == 1:  # workaround because numpy einsum can't broadcast? https://github.com/numpy/numpy/issues/9984
+        return exp / Einsum("i->", exp)
+    elif len(x.shape) == 2:
+        return exp / Einsum("bi,o->bo", exp, np.array([1]))
+    elif len(x.shape) == 3:
+        return exp / Einsum("abi,o->abo", exp, np.array([1]))
+    elif len(x.shape) == 4:
+        return exp / Einsum("abci,o->abco", exp, np.array([1]))
+    else:
+        raise ValueError("5D tensors not yet supported")

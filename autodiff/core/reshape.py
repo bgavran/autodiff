@@ -1,9 +1,9 @@
 import numbers
 import numpy as np
-from .computational_graph import Primitive
+from .node import Node
 
 
-class ReduceSumKeepDims(Primitive):
+class ReduceSumKeepDims(Node):
     def __init__(self, node, axes):
         super().__init__([node], name="ReduceSumKeepDims")
         self.node = self.children[0]
@@ -19,7 +19,7 @@ class ReduceSumKeepDims(Primitive):
         return 0
 
 
-class Concat(Primitive):
+class Concat(Node):
     def __init__(self, a, b, axis=0):
         assert axis >= 0  # if axis is -1, how do we find out how many axes are there?
         super().__init__([a, b], name="Concat")
@@ -49,7 +49,7 @@ class Concat(Primitive):
         return 0
 
 
-class Reshape(Primitive):
+class Reshape(Node):
     def __init__(self, node, shape, name="Reshape"):
         super().__init__([node], name)
         self.node = self.children[0]
@@ -79,7 +79,7 @@ class Reshape(Primitive):
 
 # TODO does slicing really work as it should?! Higher order gradients seem wrong?
 
-class Slice(Primitive):
+class Slice(Node):
     def __init__(self, node, slice_val, name="Slice"):
         if name is None:
             name = str(slice_val)
@@ -102,7 +102,7 @@ class Slice(Primitive):
         return 0
 
 
-class Pad(Primitive):
+class Pad(Node):
     def __init__(self, node, pad_width, constant_values, name="Slice"):
         """
 
