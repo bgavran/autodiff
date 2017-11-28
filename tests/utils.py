@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import autodiff as ad
-from .numerical_check import test_numeric
+from numerical_check import test_numeric
 
 
 def differentiate_n_times(my_graph, tf_graph, my_vars, tf_vars, order=1, my_curr_grad=None, tf_curr_grad=None):
@@ -83,6 +83,6 @@ def arrays_allclose(a, b):
     np.testing.assert_allclose(a, b, rtol=1e-2, atol=1e-5)
 
 
-def custom_test(test, my_graph, my_wrt_vars, tf_graph=None, tf_wrt_vars=None, order=1):
+def custom_test(test, my_graph, my_wrt_vars, tf_graph=None, tf_wrt_vars=None, order=2):
     # test_one_op(test, my_graph, tf_graph, my_wrt_vars, tf_wrt_vars, order=order)
     test_numeric(test, my_graph, my_wrt_vars, order=order)

@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 import autodiff as ad
-from tests import utils
+import utils
 
 
 class TestEinSum(TestCase):
