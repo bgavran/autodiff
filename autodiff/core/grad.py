@@ -3,7 +3,7 @@ import numpy as np
 import collections
 from .utils import reverse_topo_sort
 from .ops import Add
-from .computational_graph import Variable
+from .node import Variable
 
 
 def grad(top_node, wrt_list, previous_grad=None):
@@ -17,7 +17,7 @@ def grad(top_node, wrt_list, previous_grad=None):
     Essentially, grad is structural transformation that is a function *only* of the topology of the computational graph.
 
     :param top_node: node in the graph whose gradient will be taken with respect to all variables in wrt_list
-    :param wrt_list: list of variables whose gradient we're looking for
+    :param wrt_list: list of objects, instances of Node, whose gradient we're looking for
     :param previous_grad: incoming gradient to top node, by default np.ones(top_node.shape)
     :return: returns a list of gradients corresponding to variables in wrt_list
     """
@@ -36,6 +36,7 @@ def grad(top_node, wrt_list, previous_grad=None):
 
     dct = functools.reduce(add_partials, reverse_topo_sort(top_node), dct)  # basically a foldl
 
+    # if a node is not a part of the graph, return Variable(0) instead of []
     return [dct[wrt] if dct[wrt] != [] else Variable(0) for wrt in wrt_list]
 
 
