@@ -106,7 +106,7 @@ This is in contrast as to how backpropagation is usually presented and its inner
 
 __Second cool part:__
 
-Instead of implementing `tranpose`, `matmul`, `dot` and `reduce_sum` and whatnot separately, I implemented a generalization of all tensor contraction operations - `einsum`.
+Instead of implementing `tranpose`, `matmul`, `dot` and `reduce_sum` and whatnot separately, I implemented an operation which uses the generalization of all tensor contraction operations - `einsum`.
 In short, it allows operations to be done on tensors on arbitrary rank! 
 
 I also implemented a way to get gradients of `einsum` and it turns out that there's an extremely elegant way to do that.
@@ -121,7 +121,7 @@ These questions are some of my guidelines of deciding how this project should lo
 Usually, the idea is: "lets compute forward pass, then compute gradients, put them through an optimizer and add the result to the parameters".
 
 This seem to be the first principles for training neural networks.
-This is how every backpropgation tutorial presents it, this is how I learned it and this is probably how most people learned it.
+This is how every backpropagation tutorial presents it, this is how I learned it and this is probably how most people learned it.
 
 However, the [Synthetic Gradients paper](https://arxiv.org/abs/1608.05343) seems to challenge that idea.
 
