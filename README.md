@@ -104,6 +104,14 @@ It doesn't use the information about derivatives at all, it's a function only of
 Since it dynamically creates computational graphs, you can take the gradient of the gradient at no extra cost!
 This is in contrast as to how backpropagation is usually presented and its inner mechanisms obscured with the many linear algebra operations. 
 
+__Second cool part:__
+
+Instead of implementing `tranpose`, `matmul`, `dot` and `reduce_sum` and whatnot separately, I implemented a generalization of all tensor contraction operations - `einsum`.
+In short, it allows operations to be done on tensors on arbitrary rank! 
+
+I also implemented a way to get gradients of `einsum` and it turns out that there's an extremely elegant way to do that.
+Usually, when taking the gradients of mentioned functions, you're actually taking the same approach every time, without realizing it! Turns out it's exactly the approach `einsum` uses.
+
 ## Side note - what are really the first principles of learning mechanisms? 
 
 These questions are some of my guidelines of deciding how this project should look like.
@@ -119,8 +127,6 @@ However, the [Synthetic Gradients paper](https://arxiv.org/abs/1608.05343) seems
 
 What they did is they broke the feedback loop of updating the parameters into several smaller feedback loops, some of which __don't have any Gradient operations in them!__ And it still works! 
 Obivously, the gradient information *is* used during the training, but it seems that a functional, efficient update can be performed with just an approximation of the gradient.
-
-This means that the core principles outlined above aren't really *core* principles and that there's something else going on.
 
 #### What it means to _use an optimizer_ while training neural networks?
 
