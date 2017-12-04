@@ -21,12 +21,9 @@ Therefore, this project consist of implementation of an automated way to do that
 
 Check out the `examples` directory to see it in action!
 
-Disclaimer: This is a proof of concept, rather than a usable framework. It's not optimized and you can probably break any of the things above if you try. 
-Foundations are there but I'm still trying understand how [good code](https://xkcd.com/844/) should look.
-
-I welcome any feedback on the project.
-
 Everything is implemented only in Python 3.6 and numpy.
+
+Feel free to contact me if you have any feedback on the project!
 
 ## Usage
 
@@ -144,3 +141,6 @@ Obviously, the principle "oh we just take the gradient and change it a bit befor
 ---
 
 Tanh visualization idea and inspiration taken from [HIPS autograd](https://github.com/HIPS/autograd).
+
+Also, a small disclaimer: This is a proof of concept, rather than a usable framework. It's not optimized and you can probably break any of the things above if you try. 
+Foundations are there but I'm still trying understand how [good code](https://xkcd.com/844/) should look.
