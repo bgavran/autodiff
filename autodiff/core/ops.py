@@ -121,21 +121,6 @@ class Recipr(Node):
         return 0
 
 
-class Transpose(Node):
-    def __init__(self, node, name="Transpose"):
-        super().__init__([node], name)
-        self.node = self.children[0]
-        self.shape = self.node.shape[::-1]
-
-    def _eval(self):
-        return np.transpose(self.node())
-
-    def _partial_derivative(self, wrt, previous_grad):
-        if self.node == wrt:
-            return Transpose(previous_grad)
-        return 0
-
-
 class Einsum(Node):
     def __init__(self, op_str, *operands, name="EinSum"):
         super().__init__(list(operands), name + " " + op_str)
@@ -196,8 +181,8 @@ class Einsum(Node):
 
     def _partial_derivative(self, wrt, previous_grad):
         """
-        Usual einsum operation looks something like this c = einsum("ij,kj->ik", a, b)
-        Gradient w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,kj->ij", c, b).
+        Usual einsum operation looks something like this c = einsum("ij,jk->ik", a, b)
+        Gradient w.r.t. the first parameter just changes the op to look like this: df = einsum("ik,jk->ij", c, b).
         It basically just switches the output with one of the inputs.
 
         For tensors that have some of their dimensions implicitly summed, a new tensor of ones is explicitly added
@@ -426,6 +411,11 @@ def SquaredDifference(x, y):
 @module_wrapper
 def MatMul(x, y):
     return Einsum("ij,jk->ik", x, y)
+
+
+@module_wrapper
+def Transpose(x):
+    return Einsum("ij->ji", x)
 
 
 @module_wrapper

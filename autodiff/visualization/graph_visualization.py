@@ -72,7 +72,6 @@ class MyDigraph(Digraph):
 
     def add_node_subgraph_to_plot_graph(self, top_node):
         if MyDigraph.id_str(top_node) not in self.added_nodes:
-            # self.add_node_with_context(top_node, [])  # top_node.context_list)
             self.add_node_with_context(top_node, top_node.context_list)
 
             # Add connections to children
