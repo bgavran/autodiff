@@ -4,34 +4,39 @@ import numpy as np
 from contextlib import contextmanager
 
 
-@contextmanager
-def add_context(ctx):
-    Node.context_list.append(ctx + "_" + str(time.time()))
-    try:
-        yield
-    finally:
-        del Node.context_list[-1]
-
-
 class Node:
     epsilon = 1e-12
     id = 0
     context_list = []
 
     def __init__(self, children, name="Node"):
+        # wraps normal numbers into Variables
         self.children = [child if isinstance(child, Node) else Variable(child) for child in children]
         self.name = name
         self.cached = None
         self.shape = None
 
+        self.context_list = Node.context_list.copy()
         self.id = Node.id
         Node.id += 1
-        self.context_list = Node.context_list.copy()
 
     def _eval(self):
+        """
+
+        :return: returns the value of the evaluated Node
+        """
         raise NotImplementedError()
 
     def _partial_derivative(self, wrt, previous_grad):
+        """
+        Method which calculates the partial derivative of self with respect to the wrt Node.
+        By defining this method without evaluation of any nodes, higher-order gradients
+        are available for free.
+
+        :param wrt: instance of Node, partial derivativative with respect to it
+        :param previous_grad: gradient with respect to self
+        :return: an instance of Node whose evaluation yields the partial derivative
+        """
         raise NotImplementedError()
 
     def eval(self):
@@ -41,7 +46,7 @@ class Node:
         return self.cached
 
     def partial_derivative(self, wrt, previous_grad):
-        with add_context(self.name + "PD" + " wrt " + str(wrt)):
+        with add_context(self.name + " PD" + " wrt " + str(wrt)):
             return self._partial_derivative(wrt, previous_grad)
 
     def plot_comp_graph(self, view=True, name="comp_graph"):
@@ -130,3 +135,12 @@ class Variable(Node):
         if self == wrt:
             return previous_grad
         return 0
+
+
+@contextmanager
+def add_context(ctx):
+    Node.context_list.append(ctx + "_" + str(time.time()))
+    try:
+        yield
+    finally:
+        del Node.context_list[-1]
