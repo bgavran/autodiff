@@ -2,7 +2,7 @@ import numpy as np
 import autodiff as ad
 import time
 
-from examples.data_loader import MNIST
+from examples.utils import MNIST
 
 input_size = 784
 hidden_size = 32
@@ -23,8 +23,12 @@ for epoch in range(2):
 
         sce = ad.SoftmaxCEWithLogits(labels=y_true, logits=y_logit)
         cost = ad.Einsum("i->", sce) / batch_size
+        cost.plot_comp_graph()
+        input()
 
         w_list_grads = ad.grad(cost, nn.w)
+        w_list_grads[0].plot_comp_graph()
+        input()
 
         new_w_list = optimizer([i() for i in nn.w], [i() for i in w_list_grads])
         optimizer.apply_new_weights(nn.w, new_w_list)
