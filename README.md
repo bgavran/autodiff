@@ -19,7 +19,7 @@ Therefore, this project consist of implementation of an automated way to do that
 * Numerical checks
 * Checkpointing
 
-Check out the `examples` directory to see it in action!
+Check out the `examples` directory to see it in action! The newest addition is a char-rnn example where you can use a recurrent neural network to generate text.
 
 Everything is implemented only in Python 3.6 and numpy.
 
