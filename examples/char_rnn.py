@@ -3,7 +3,7 @@ import numpy as np
 import autodiff as ad
 from examples.utils import TextLoader
 
-file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "sample_text_for_generation.txt")
+file_path = os.path.join(os.path.dirname(__file__), "sample_text_for_generation.txt")
 text_loader = TextLoader(open(file_path).read())
 
 batch_size = 8
@@ -32,7 +32,7 @@ def sample_text(seed_text="The", unroll_steps_after_seed=30, temperature=0.7):
         h = ad.Tanh(h @ w + x @ u + b_h)
         logits = h @ v + b_o
 
-    def sample_char(logits): # sample a character from the multinomial distribution
+    def sample_char(logits):  # sample a character from the multinomial distribution
         next_char_onehot = np.random.multinomial(n=1, pvals=ad.Softmax(logits / temperature)()[0])
         next_char = text_loader.ind_to_char[np.argmax(next_char_onehot)]
         next_char_onehot = np.expand_dims(next_char_onehot, axis=0)
