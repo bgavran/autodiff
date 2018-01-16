@@ -29,7 +29,7 @@ def grad(top_node, wrt_list, previous_grad=None):
     dct[top_node] += previous_grad  # add the incoming gradient for the top node
 
     def add_partials(dct, node):
-        for child in set(node.children):  # calculate all partial derivs w.r.t. each child and add them to child's list
+        for child in set(node.children):  # calc. all partial derivs w.r.t. each child and add them to child's grads
             dct[child] += node.partial_derivative(wrt=child, previous_grad=dct[node])
         return dct
 
