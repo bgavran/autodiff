@@ -96,7 +96,7 @@ To get the gradient of a function - you use `grad`.
 
 __The cool part:__
 
-`grad` is a higher-order function that maps one computational graph to another - the graph of the derivative.
+`grad` is a function that maps one computational graph to another - the graph of the derivative.
 It doesn't use the information about derivatives at all, it's a function only of the graph structure!
 Since it dynamically creates computational graphs, you can take the gradient of the gradient at no extra cost!
 This is in contrast as to how backpropagation is usually presented and its inner mechanisms obscured with the many linear algebra operations. 
