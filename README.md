@@ -25,7 +25,7 @@ Everything is implemented only in Python 3.6 and numpy.
 
 Feel free to contact me if you have any feedback on the project!
 
-**12.04.2018. -- Update --** It seems that there is a more elegant approach to this problem, I'm trying to explore it in this [repo](https://github.com/bgavran/Backprop_as_Functor).
+**12.04.2018. -- Update --** It seems that there is a more elegant approach to this problem, I'm trying to explore it in this [repo](https://github.com/bgavran/Compositional_Deep_Learning).
 
 ## Usage
 
